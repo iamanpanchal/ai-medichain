@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { cn } from '../utils/cn';
-import { I, Logo, Avatar } from './ui';
+import { I, Logo, Avatar, Theme, ThemeToggle } from './ui';
 import { NOTIFS, Role, USERS } from '../data';
 
 export interface NavItem {
@@ -54,7 +54,7 @@ const TITLES: Record<string, [string, string]> = {
   record: ['Record Details', 'Verify this record against the chain.'],
 };
 
-export function Shell({ role, page, go, onLogout, pending, children }: { role: Role; page: string; go: (p: string) => void; onLogout: () => void; pending: number; children: ReactNode }) {
+export function Shell({ role, page, go, onLogout, pending, theme, onToggleTheme, children }: { role: Role; page: string; go: (p: string) => void; onLogout: () => void; pending: number; theme: Theme; onToggleTheme: () => void; children: ReactNode }) {
   const user = USERS[role];
   const [drawer, setDrawer] = useState(false);
   const [bell, setBell] = useState(false);
@@ -121,6 +121,7 @@ export function Shell({ role, page, go, onLogout, pending, children }: { role: R
               <p className="hidden truncate text-xs text-dim sm:block">{sub}</p>
             </div>
             <div className="ml-auto flex items-center gap-2.5">
+              <ThemeToggle theme={theme} onToggle={onToggleTheme} />
               <div className="relative">
                 <button onClick={() => setBell(!bell)} className="relative grid h-9 w-9 place-items-center rounded-lg border border-line text-mist transition-colors hover:border-pulse2/60 hover:text-snow" aria-label="Notifications">
                   <I n="bell" className="h-4.5 w-4.5" />

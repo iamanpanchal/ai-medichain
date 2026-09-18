@@ -27,6 +27,19 @@
   color-scheme: dark;
 }
 
+html.light {
+  color-scheme: light;
+  --color-ink: #f5f9ff;
+  --color-deep: #eaf2ff;
+  --color-deep2: #e0ecfc;
+  --color-raise: #d6e5f8;
+  --color-line: #b8cce5;
+  --color-linesoft: #ccdaec;
+  --color-snow: #10233f;
+  --color-mist: #425d7e;
+  --color-dim: #637c9e;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -36,6 +49,23 @@ body {
   color: var(--color-snow);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+}
+
+html.light .panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(231, 240, 252, 0.9));
+  border-color: var(--color-linesoft);
+}
+html.light .panel-hi {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(220, 234, 252, 0.95));
+  border-color: #adc7e7;
+  box-shadow: 0 18px 50px -20px rgba(43, 83, 130, 0.3);
+}
+html.light .field {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: #b8cce5;
+}
+html.light .noise {
+  opacity: 0.025;
 }
 
 ::selection {

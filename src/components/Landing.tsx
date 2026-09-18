@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cn } from '../utils/cn';
-import { I, Logo, QR, Reveal, SectionTag, useCountUp, useInView, useScramble, useToast } from './ui';
+import { I, Logo, QR, Reveal, SectionTag, Theme, ThemeToggle, useCountUp, useInView, useScramble, useToast } from './ui';
 import { HOSPITALS, TESTIMONIALS } from '../data';
 import { MobilePreview } from './MobilePreview';
 
@@ -117,7 +117,7 @@ const STEPS = [
   { n: '04', icon: 'share', t: 'Share with your care team', d: 'Grant doctors time-boxed access, revoke anytime, and verify any record with a QR scan.' },
 ];
 
-export function Landing({ onGetStarted }: { onGetStarted: () => void }) {
+export function Landing({ onGetStarted, theme, onToggleTheme }: { onGetStarted: () => void; theme: Theme; onToggleTheme: () => void }) {
   const toast = useToast();
   const [menu, setMenu] = useState(false);
   const [sub, setSub] = useState('');
@@ -147,6 +147,7 @@ export function Landing({ onGetStarted }: { onGetStarted: () => void }) {
             ))}
           </nav>
           <div className="flex items-center gap-3">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
             <button onClick={onGetStarted} className="hidden rounded-lg bg-pulse px-4 py-2 text-[13px] font-bold text-white shadow-[0_10px_26px_-10px_rgba(46,124,246,0.9)] transition-all hover:-translate-y-0.5 hover:bg-pulse2 sm:block">
               Get Started
             </button>

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ToastProvider } from './components/ui';
+import { useEffect, useState } from 'react';
+import { Theme, ToastProvider } from './components/ui';
 import { Landing } from './components/Landing';
 import { Login, RoleSelect } from './components/Auth';
 import { Shell } from './components/Shell';
@@ -13,6 +13,7 @@ type Stage = 'landing' | 'auth' | 'role' | 'app';
 
 export default function App() {
   const [stage, setStage] = useState<Stage>('landing');
+  const [theme, setTheme] = useState<Theme>(() => localStorage.getItem('medichain-theme') === 'light' ? 'light' : 'dark');
   const [role, setRole] = useState<Role>('patient');
   const [page, setPage] = useState('dashboard');
   const [records, setRecords] = useState<MedRecord[]>(RECORDS);
@@ -23,6 +24,11 @@ export default function App() {
     approved: ACCESS_APPROVED,
     rejected: ACCESS_REJECTED,
   });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('light', theme === 'light');
+    localStorage.setItem('medichain-theme', theme);
+  }, [theme]);
 
   const go = (p: string) => {
     setPage(p);
@@ -60,7 +66,7 @@ export default function App() {
   return (
     <ToastProvider>
       <div className="noise pointer-events-none fixed inset-0 z-[80]" aria-hidden />
-      {stage === 'landing' && <Landing onGetStarted={() => enter('auth')} />}
+      {stage === 'landing' && <Landing onGetStarted={() => enter('auth')} theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />}
       {stage === 'auth' && <Login onLogin={(r) => { setRole(r); enter('role'); }} onBack={() => enter('landing')} />}
       {stage === 'role' && (
         <RoleSelect
@@ -73,7 +79,7 @@ export default function App() {
         />
       )}
       {stage === 'app' && (
-        <Shell role={role} page={page} go={go} onLogout={logout} pending={access.pending.length}>
+        <Shell role={role} page={page} go={go} onLogout={logout} pending={access.pending.length} theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}>
           {role === 'patient' ? (
             <>
               {page === 'dashboard' && <Dashboard records={records} pending={access.pending.length} go={go} onOpen={openRecord} />}

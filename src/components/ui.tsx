@@ -220,6 +220,13 @@ const P: Record<string, React.ReactNode> = {
       <path d="M20 10.5v3" />
     </>
   ),
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </>
+  ),
+  moon: <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" />,
 };
 
 export function I({ n, className, sw = 2 }: { n: string; className?: string; sw?: number }) {
@@ -227,6 +234,23 @@ export function I({ n, className, sw = 2 }: { n: string; className?: string; sw?
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className={cn('h-5 w-5', className)} aria-hidden>
       {P[n] ?? P.pulse}
     </svg>
+  );
+}
+
+export type Theme = 'dark' | 'light';
+
+export function ThemeToggle({ theme, onToggle, className }: { theme: Theme; onToggle: () => void; className?: string }) {
+  const nextTheme = theme === 'dark' ? 'light' : 'dark';
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn('grid h-9 w-9 place-items-center rounded-lg border border-line text-mist transition-colors hover:border-pulse2/60 hover:text-snow', className)}
+      aria-label={`Switch to ${nextTheme} mode`}
+      title={`Switch to ${nextTheme} mode`}
+    >
+      <I n={theme === 'dark' ? 'sun' : 'moon'} className="h-4.5 w-4.5" />
+    </button>
   );
 }
 
