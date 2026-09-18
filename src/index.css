@@ -60,12 +60,26 @@ html.light .panel-hi {
   border-color: #adc7e7;
   box-shadow: 0 18px 50px -20px rgba(43, 83, 130, 0.3);
 }
+html.light .landing-stats {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(226, 239, 255, 0.98));
+  border-color: #a9c6e9;
+  box-shadow: 0 22px 52px -26px rgba(42, 82, 130, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
 html.light .field {
   background: rgba(255, 255, 255, 0.86);
   border-color: #b8cce5;
 }
 html.light .noise {
   opacity: 0.025;
+}
+html.light .bg-grid {
+  background-image: linear-gradient(rgba(46, 124, 246, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(46, 124, 246, 0.1) 1px, transparent 1px);
+}
+/* Keep the grid decorative; masking the section also fades its CTA, preview, and stats. */
+.bg-grid-fade {
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 ::selection {
@@ -101,6 +115,11 @@ html.light .noise {
   border-radius: 1rem;
   box-shadow: 0 18px 50px -20px rgba(2, 10, 26, 0.9);
 }
+.landing-stats {
+  background: linear-gradient(135deg, rgba(18, 52, 96, 0.96), rgba(6, 25, 52, 0.98));
+  border-color: #28548b;
+  box-shadow: 0 24px 60px -26px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(123, 181, 255, 0.14);
+}
 .glow-pulse {
   box-shadow: 0 0 44px -10px rgba(46, 124, 246, 0.55);
 }
@@ -132,11 +151,6 @@ select.field {
     linear-gradient(90deg, rgba(91, 155, 255, 0.05) 1px, transparent 1px);
   background-size: 46px 46px;
 }
-.bg-grid-fade {
-  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 30%, transparent 75%);
-  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 30%, transparent 75%);
-}
-
 .noise {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/></svg>");
   opacity: 0.05;

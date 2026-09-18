@@ -229,7 +229,7 @@ export function Landing({ onGetStarted, theme, onToggleTheme }: { onGetStarted: 
 
         {/* STATS */}
         <div ref={statsIn.ref} className="mx-auto mt-20 max-w-7xl px-5">
-          <div className="panel grid grid-cols-2 gap-8 px-8 py-8 md:grid-cols-4">
+          <div className="panel landing-stats grid grid-cols-2 gap-8 px-8 py-8 md:grid-cols-4">
             {STATS.map((s, i) => (
               <Stat key={s.label} {...s} start={statsIn.inView} delay={i * 150} />
             ))}
