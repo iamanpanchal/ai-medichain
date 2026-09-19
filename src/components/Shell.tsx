@@ -2,6 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { cn } from '../utils/cn';
 import { I, Logo, Avatar, Theme, ThemeToggle } from './ui';
 import { NOTIFS, Role, USERS } from '../data';
+import { BottomTabBar } from './BottomTabBar';
+import { Sidebar as SharedSidebar } from './Sidebar';
+import { TopNav } from './TopNav';
 
 export interface NavItem {
   id: string;
@@ -54,7 +57,7 @@ const TITLES: Record<string, [string, string]> = {
   record: ['Record Details', 'Verify this record against the chain.'],
 };
 
-export function Shell({ role, page, go, onLogout, pending, theme, onToggleTheme, children }: { role: Role; page: string; go: (p: string) => void; onLogout: () => void; pending: number; theme: Theme; onToggleTheme: () => void; children: ReactNode }) {
+export function Shell({ role, page, go, onLogout, pending, theme, onToggleTheme, children, assistant }: { role: Role; page: string; go: (p: string) => void; onLogout: () => void; pending: number; theme: Theme; onToggleTheme: () => void; children: ReactNode; assistant?: ReactNode }) {
   const user = USERS[role];
   const [drawer, setDrawer] = useState(false);
   const [bell, setBell] = useState(false);
@@ -64,7 +67,7 @@ export function Shell({ role, page, go, onLogout, pending, theme, onToggleTheme,
   const greet = h < 12 ? 'Good Morning' : h < 17 ? 'Good Afternoon' : 'Good Evening';
 
   const Sidebar = (
-    <aside className="flex h-full w-[236px] flex-col border-r border-linesoft bg-deep/40">
+    <SharedSidebar>
       <div className="px-5 pb-4 pt-5">
         <Logo />
       </div>
@@ -97,23 +100,23 @@ export function Shell({ role, page, go, onLogout, pending, theme, onToggleTheme,
           <I n="logout" className="h-4 w-4" /> Logout
         </button>
       </div>
-    </aside>
+    </SharedSidebar>
   );
 
   return (
     <div className="flex min-h-screen">
-      <div className="fixed inset-y-0 left-0 z-40 hidden lg:block">{Sidebar}</div>
+      <div className="fixed inset-y-0 left-0 z-40 hidden md:block">{Sidebar}</div>
       {drawer && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-ink/70 backdrop-blur-sm" onClick={() => setDrawer(false)} />
           <div className="anim-pop absolute inset-y-0 left-0">{Sidebar}</div>
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-[236px]">
-        <header className="sticky top-0 z-30 border-b border-linesoft bg-ink/85 backdrop-blur-xl">
+      <div className="flex min-w-0 flex-1 flex-col md:pl-[236px]">
+        <TopNav>
           <div className="flex items-center gap-3 px-4 py-3 md:px-6">
-            <button onClick={() => setDrawer(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-line text-mist lg:hidden" aria-label="Open menu">
+            <button onClick={() => setDrawer(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-line text-mist md:hidden" aria-label="Open menu">
               <I n="grid" className="h-4.5 w-4.5" />
             </button>
             <div className="min-w-0">
@@ -161,8 +164,10 @@ export function Shell({ role, page, go, onLogout, pending, theme, onToggleTheme,
               </button>
             </div>
           </div>
-        </header>
-        <main className="flex-1 px-4 py-6 md:px-6">{children}</main>
+        </TopNav>
+        <main className="flex-1 px-4 py-6 pb-22 md:px-6 md:pb-6">{children}</main>
+        {assistant}
+        <BottomTabBar page={page} onNavigate={go} />
       </div>
     </div>
   );

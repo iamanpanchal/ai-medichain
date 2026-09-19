@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Theme, ToastProvider } from './components/ui';
 import { Landing } from './components/Landing';
 import { Login, RoleSelect } from './components/Auth';
+import { AIAssistant } from './components/AIAssistant';
 import { Shell } from './components/Shell';
 import {
   ActivityLog, AccessRequests, AccessState, AISummary, Dashboard, MyRecords, Passport, RecordDetail, Settings, SharedWith, Upload,
@@ -12,10 +14,11 @@ import { ACCESS_APPROVED, ACCESS_PENDING, ACCESS_REJECTED, MedRecord, RECORDS, R
 type Stage = 'landing' | 'auth' | 'role' | 'app';
 
 export default function App() {
-  const [stage, setStage] = useState<Stage>('landing');
+  const location = useLocation();
+  const navigate = useNavigate();
   const [theme, setTheme] = useState<Theme>(() => localStorage.getItem('medichain-theme') === 'light' ? 'light' : 'dark');
   const [role, setRole] = useState<Role>('patient');
-  const [page, setPage] = useState('dashboard');
+  const [page, setPage] = useState(() => location.pathname.startsWith('/app/') ? location.pathname.split('/')[2] || 'dashboard' : 'dashboard');
   const [records, setRecords] = useState<MedRecord[]>(RECORDS);
   const [selRecord, setSelRecord] = useState<MedRecord>(RECORDS[0]);
   const [aiId, setAiId] = useState('MR-1024');
@@ -30,8 +33,13 @@ export default function App() {
     localStorage.setItem('medichain-theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (location.pathname.startsWith('/app/')) setPage(location.pathname.split('/')[2] || 'dashboard');
+  }, [location.pathname]);
+
   const go = (p: string) => {
     setPage(p);
+    navigate(`/app/${p}`);
     window.scrollTo({ top: 0 });
   };
   const openRecord = (r: MedRecord) => {
@@ -54,7 +62,7 @@ export default function App() {
     });
   };
   const enter = (s: Stage) => {
-    setStage(s);
+    navigate(s === 'landing' ? '/' : s === 'auth' ? '/login' : s === 'role' ? '/select-role' : '/app/dashboard');
     window.scrollTo({ top: 0 });
   };
   const logout = () => {
@@ -62,6 +70,7 @@ export default function App() {
     setAiId('MR-1024');
     enter('landing');
   };
+  const stage: Stage = location.pathname === '/login' ? 'auth' : location.pathname === '/select-role' ? 'role' : location.pathname.startsWith('/app/') ? 'app' : 'landing';
 
   return (
     <ToastProvider>
@@ -79,7 +88,27 @@ export default function App() {
         />
       )}
       {stage === 'app' && (
-        <Shell role={role} page={page} go={go} onLogout={logout} pending={access.pending.length} theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}>
+        <Shell
+          role={role}
+          page={page}
+          go={go}
+          onLogout={logout}
+          pending={access.pending.length}
+          theme={theme}
+          onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}
+          assistant={
+            <AIAssistant
+              role={role}
+              page={page}
+              records={records}
+              pendingAccess={access.pending}
+              approvedAccess={access.approved}
+              onNavigate={go}
+              onOpenRecord={openRecord}
+              onOpenSummary={openAI}
+            />
+          }
+        >
           {role === 'patient' ? (
             <>
               {page === 'dashboard' && <Dashboard records={records} pending={access.pending.length} go={go} onOpen={openRecord} />}

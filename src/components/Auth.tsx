@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { cn } from '../utils/cn';
 import { I, Logo, Reveal, useToast } from './ui';
 import { IMG_LOGIN, Role } from '../data';
+import { COPY } from '../content';
 
 const ROLE_TABS: { id: Role; label: string; color: string; icon: string }[] = [
   { id: 'patient', label: 'Patient', color: '#2e7cf6', icon: 'user' },
@@ -69,11 +70,11 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role) => void; onBack:
               }}
             >
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-mist">Email address</label>
+                <label className="mb-1.5 block text-xs font-bold text-mist">{COPY.auth.email}</label>
                 <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" type="email" className="field" />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-mist">Password</label>
+                <label className="mb-1.5 block text-xs font-bold text-mist">{COPY.auth.password}</label>
                 <div className="relative">
                   <input value={pw} onChange={(e) => setPw(e.target.value)} placeholder="••••••••" type={showPw ? 'text' : 'password'} className="field pr-10" />
                   <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-dim transition-colors hover:text-snow" aria-label="Toggle password">
@@ -113,12 +114,12 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role) => void; onBack:
               <span className="grid h-5 w-5 place-items-center rounded bg-gradient-to-br from-[#f6851b] to-[#e2761d]">
                 <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-white"><path d="M4 5l8 4 8-4-8 9L4 5zm0 10l8-2 8 2-8 5-8-5z" opacity="0.9" /></svg>
               </span>
-              Continue with MetaMask
+              {COPY.auth.metamask}
             </button>
             <p className="mt-5 text-center text-xs font-semibold text-mist">
               Don't have an account?{' '}
               <button onClick={() => toast('Account creation opens with your on-chain wallet.', 'info')} className="font-bold text-pulse2 hover:text-cy">
-                Create one
+                {COPY.auth.signup}
               </button>
             </p>
           </div>

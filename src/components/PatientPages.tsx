@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { cn } from '../utils/cn';
 import { Avatar, I, QR, StatusPill, useToast } from './ui';
 import { BodyMap } from './ui';
+import { COPY } from '../content';
 import {
   ACTIVITY, AI_SUMMARIES, AccessReq, MedRecord, REGION_META, SHARED_WITH, TYPE_META,
 } from '../data';
@@ -331,7 +332,7 @@ export function AISummary({ records, selId, setSelId, onOpen }: { records: MedRe
     <div className="space-y-4">
       <div className="flex items-start gap-2.5 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3">
         <I n="alert" className="mt-0.5 h-4.5 w-4.5 shrink-0 text-amber" />
-        <p className="text-[13px] leading-relaxed text-amber">This is an AI-generated summary and should not replace professional medical advice. Always consult a qualified doctor.</p>
+        <p className="text-[13px] leading-relaxed text-amber">{COPY.aiDisclaimer}</p>
       </div>
 
       <div className="relative">
@@ -514,7 +515,7 @@ export function RecordDetail({ rec, onBack }: { rec: MedRecord; onBack: () => vo
                 <p className="mt-1 truncate font-mono text-xs text-snow/90">{rec.hash.slice(0, 24)}…</p>
               </div>
               <button onClick={() => copy('hash', rec.hash)} className={cn('flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-all', copied === 'hash' ? 'border-mint/50 bg-mint/15 text-mint' : 'border-line text-mist hover:border-pulse2/60 hover:text-snow')}>
-                <I n={copied === 'hash' ? 'check' : 'copy'} className="h-3.5 w-3.5" /> {copied === 'hash' ? 'Copied!' : 'Copy'}
+                <I n={copied === 'hash' ? 'check' : 'copy'} className="h-3.5 w-3.5" /> {copied === 'hash' ? COPY.actions.copied : 'Copy'}
               </button>
             </div>
             <div className="flex items-center gap-2">
@@ -523,7 +524,7 @@ export function RecordDetail({ rec, onBack }: { rec: MedRecord; onBack: () => vo
                 <p className="mt-1 truncate font-mono text-xs text-snow/90">{rec.tx}</p>
               </div>
               <button onClick={() => copy('tx', rec.tx)} className={cn('flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-all', copied === 'tx' ? 'border-mint/50 bg-mint/15 text-mint' : 'border-line text-mist hover:border-pulse2/60 hover:text-snow')}>
-                <I n={copied === 'tx' ? 'check' : 'copy'} className="h-3.5 w-3.5" /> {copied === 'tx' ? 'Copied!' : 'Copy'}
+                <I n={copied === 'tx' ? 'check' : 'copy'} className="h-3.5 w-3.5" /> {copied === 'tx' ? COPY.actions.copied : 'Copy'}
               </button>
             </div>
             <div>

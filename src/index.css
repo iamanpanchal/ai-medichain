@@ -4,7 +4,6 @@
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-
   --color-ink: #04101f;
   --color-deep: #071a33;
   --color-deep2: #0a2142;
@@ -208,6 +207,12 @@ select.field {
 .anim-toast { animation: toastIn 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
 .anim-marquee { animation: marqueeX 30s linear infinite; }
 .anim-blink { animation: blinkDot 1.6s ease-in-out infinite; }
+
+@keyframes assistantGlow {
+  0%, 100% { box-shadow: 0 16px 42px -12px rgba(46, 124, 246, 0.95), 0 0 0 0 rgba(34, 211, 238, 0.35); }
+  50% { box-shadow: 0 16px 48px -10px rgba(46, 124, 246, 1), 0 0 0 8px rgba(34, 211, 238, 0); }
+}
+.assistant-fab { animation: assistantGlow 2.8s ease-in-out infinite; }
 
 .ecg-path {
   stroke-dasharray: 130 1430;

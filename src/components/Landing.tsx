@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { cn } from '../utils/cn';
+import { COPY } from '../content';
 import { I, Logo, QR, Reveal, SectionTag, Theme, ThemeToggle, useCountUp, useInView, useScramble, useToast } from './ui';
 import { HOSPITALS, TESTIMONIALS } from '../data';
 import { MobilePreview } from './MobilePreview';
@@ -149,7 +150,7 @@ export function Landing({ onGetStarted, theme, onToggleTheme }: { onGetStarted: 
           <div className="flex items-center gap-3">
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
             <button onClick={onGetStarted} className="hidden rounded-lg bg-pulse px-4 py-2 text-[13px] font-bold text-white shadow-[0_10px_26px_-10px_rgba(46,124,246,0.9)] transition-all hover:-translate-y-0.5 hover:bg-pulse2 sm:block">
-              Get Started
+              {COPY.landing.getStarted}
             </button>
             <button onClick={() => setMenu(!menu)} className="grid h-9 w-9 place-items-center rounded-lg border border-line text-mist lg:hidden" aria-label="Menu">
               <I n={menu ? 'x' : 'grid'} className="h-4.5 w-4.5" />
@@ -163,7 +164,7 @@ export function Landing({ onGetStarted, theme, onToggleTheme }: { onGetStarted: 
                 {l}
               </a>
             ))}
-            <button onClick={onGetStarted} className="mt-2 w-full rounded-lg bg-pulse py-2.5 text-sm font-bold text-white">Get Started</button>
+            <button onClick={onGetStarted} className="mt-2 w-full rounded-lg bg-pulse py-2.5 text-sm font-bold text-white">{COPY.landing.getStarted}</button>
           </nav>
         )}
       </header>
@@ -212,12 +213,12 @@ export function Landing({ onGetStarted, theme, onToggleTheme }: { onGetStarted: 
             <Reveal delay={320}>
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 <button onClick={onGetStarted} className="group inline-flex items-center gap-2.5 rounded-xl bg-pulse px-6 py-3.5 text-sm font-bold text-white shadow-[0_16px_40px_-12px_rgba(46,124,246,0.9)] transition-all hover:-translate-y-0.5 hover:bg-pulse2">
-                  Get Started
+                  {COPY.landing.getStarted}
                   <I n="arrow" className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
                 <button onClick={() => toast('Product film coming soon — stay tuned!', 'info')} className="inline-flex items-center gap-2.5 rounded-xl border border-line bg-deep/60 px-6 py-3.5 text-sm font-bold text-snow transition-colors hover:border-pulse2/50 hover:bg-deep">
                   <span className="grid h-6 w-6 place-items-center rounded-full bg-snow/10"><I n="play" className="h-3 w-3 fill-snow" /></span>
-                  Watch Video
+                  {COPY.landing.watchVideo}
                 </button>
               </div>
             </Reveal>

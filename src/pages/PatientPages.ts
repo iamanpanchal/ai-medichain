@@ -1,0 +1,1 @@
+export { Dashboard as PatientDashboard, MyRecords, AISummary as AIMedicalRecordSummary, RecordDetail as RecordDetails, AccessRequests as AccessManagement, Passport as HealthPassport, Upload as UploadMedicalRecord } from '../components/PatientPages';
