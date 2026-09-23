@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ** ai-medichain
 If you choose PostgreSQL:
 
@@ -30,3 +31,6 @@ PostgreSQL → metadata + file reference
 Hash
      ↓
 Blockchain → verification
+=======
+** ai-medichain
+>>>>>>> 2e33143 (add chatbot)

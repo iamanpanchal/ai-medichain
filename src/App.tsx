@@ -3,7 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Theme, ToastProvider } from './components/ui';
 import { Landing } from './components/Landing';
 import { Login, RoleSelect } from './components/Auth';
+<<<<<<< HEAD
 import { AIAssistant } from './components/AIAssistant';
+=======
+import { ChatWidget } from './components/ChatWidget';
+import { ChatPanel } from './components/ChatPanel';
+>>>>>>> 2e33143 (add chatbot)
 import { Shell } from './components/Shell';
 import {
   ActivityLog, AccessRequests, AccessState, AISummary, Dashboard, MyRecords, Passport, RecordDetail, Settings, SharedWith, Upload,
@@ -22,6 +27,11 @@ export default function App() {
   const [records, setRecords] = useState<MedRecord[]>(RECORDS);
   const [selRecord, setSelRecord] = useState<MedRecord>(RECORDS[0]);
   const [aiId, setAiId] = useState('MR-1024');
+<<<<<<< HEAD
+=======
+  const [chatOpen, setChatOpen] = useState(false);
+  const [landingChatOpen, setLandingChatOpen] = useState(false);
+>>>>>>> 2e33143 (add chatbot)
   const [access, setAccess] = useState<AccessState>({
     pending: ACCESS_PENDING,
     approved: ACCESS_APPROVED,
@@ -75,7 +85,11 @@ export default function App() {
   return (
     <ToastProvider>
       <div className="noise pointer-events-none fixed inset-0 z-[80]" aria-hidden />
+<<<<<<< HEAD
       {stage === 'landing' && <Landing onGetStarted={() => enter('auth')} theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />}
+=======
+      {stage === 'landing' && <><Landing onGetStarted={() => enter('auth')} theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />{landingChatOpen && <ChatPanel records={[]} publicMode onClose={() => setLandingChatOpen(false)} />}<ChatWidget onOpen={() => setLandingChatOpen(true)} /></>}
+>>>>>>> 2e33143 (add chatbot)
       {stage === 'auth' && <Login onLogin={(r) => { setRole(r); enter('role'); }} onBack={() => enter('landing')} />}
       {stage === 'role' && (
         <RoleSelect
@@ -96,6 +110,7 @@ export default function App() {
           pending={access.pending.length}
           theme={theme}
           onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}
+<<<<<<< HEAD
           assistant={
             <AIAssistant
               role={role}
@@ -108,6 +123,9 @@ export default function App() {
               onOpenSummary={openAI}
             />
           }
+=======
+          assistant={role === 'patient' ? <>{chatOpen && <ChatPanel records={records} focusedRecord={page === 'record' ? selRecord : page === 'ai' ? records.find(record => record.id === aiId) : undefined} onClose={() => setChatOpen(false)} />}<ChatWidget onOpen={() => setChatOpen(true)} /></> : undefined}
+>>>>>>> 2e33143 (add chatbot)
         >
           {role === 'patient' ? (
             <>
