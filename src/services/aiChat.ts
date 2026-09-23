@@ -1,5 +1,4 @@
 import type { MedRecord } from '../data';
-const apiKey = process.env.OPENAI_API_KEY;
 export const MEDICHAIN_AI_SYSTEM_PROMPT = `You are MediChain AI Assistant. Help a patient understand only the MediChain platform and the medical-record context supplied to you.
 
 Safety rules:
@@ -20,10 +19,19 @@ export function patientRecordContext(records: MedRecord[], focusedRecord?: MedRe
 }
 
 export async function streamChat(messages: ChatMessage[], records: MedRecord[], focusedRecord: MedRecord | undefined, onToken: (token: string) => void, mode: 'patient' | 'public' = 'patient') {
-  const response = await fetch('REDACTED_API_KEY', {
+  const apiBase = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:5000';
+  const response = await fetch(`${apiBase}/api/ai/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, system: mode === 'public' ? MEDICHAIN_PUBLIC_ASSISTANT_SYSTEM_PROMPT : `${MEDICHAIN_AI_SYSTEM_PROMPT}\nPatient record context (trusted data):\n${patientRecordContext(records, focusedRecord)}` }),
+    body: JSON.stringify({
+      messages,
+      mode,
+      // Pass the full system prompt including record context so the backend
+      // proxy can forward it to Anthropic without needing DB access here.
+      system: mode === 'public'
+        ? MEDICHAIN_PUBLIC_ASSISTANT_SYSTEM_PROMPT
+        : `${MEDICHAIN_AI_SYSTEM_PROMPT}\nPatient record context (trusted data):\n${patientRecordContext(records, focusedRecord)}`,
+    }),
   });
   if (!response.ok || !response.body) throw new Error('Unable to reach the MediChain AI service.');
   const reader = response.body.getReader();

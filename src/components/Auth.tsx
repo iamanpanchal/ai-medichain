@@ -3,6 +3,7 @@ import { cn } from '../utils/cn';
 import { I, Logo, Reveal, useToast } from './ui';
 import { IMG_LOGIN, Role } from '../data';
 import { COPY } from '../content';
+import { loginWithEmail, type AuthSession } from '../services/auth';
 
 const ROLE_TABS: { id: Role; label: string; color: string; icon: string }[] = [
   { id: 'patient', label: 'Patient', color: '#2e7cf6', icon: 'user' },
@@ -10,7 +11,7 @@ const ROLE_TABS: { id: Role; label: string; color: string; icon: string }[] = [
   { id: 'hospital', label: 'Hospital', color: '#8b5cf6', icon: 'hospital' },
 ];
 
-export function Login({ onLogin, onBack }: { onLogin: (r: Role) => void; onBack: () => void }) {
+export function Login({ onLogin, onBack }: { onLogin: (r: Role, session: AuthSession) => void; onBack: () => void }) {
   const toast = useToast();
   const [role, setRole] = useState<Role>('patient');
   const [email, setEmail] = useState('');
@@ -19,16 +20,23 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role) => void; onBack:
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  const submit = (via: string) => {
+  const submit = async (via: string) => {
     if (!email.trim() || pw.length < 6) {
       toast('Enter a valid email and a password of at least 6 characters.', 'warn');
       return;
     }
+
     setBusy(true);
-    setTimeout(() => {
-      toast(`Wallet ${via} — signed in as Aman Panchal`, 'ok');
-      onLogin(role);
-    }, 700);
+    try {
+      const session = await loginWithEmail(email.trim(), pw);
+      const nextRole = session.user.role ?? role;
+      toast(`Wallet ${via} — signed in as ${session.user.name || session.user.email}`, 'ok');
+      onLogin(nextRole, session);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Unable to sign in right now.', 'warn');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const active = ROLE_TABS.find((t) => t.id === role)!;
@@ -66,7 +74,7 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role) => void; onBack:
               className="mt-5 space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                submit('verified');
+                void submit('verified');
               }}
             >
               <div>
@@ -108,7 +116,7 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role) => void; onBack:
               <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
             </div>
             <button
-              onClick={() => submit('connected via MetaMask')}
+              onClick={() => { void submit('connected via MetaMask'); }}
               className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-deep/60 py-3 text-sm font-bold text-snow transition-all hover:border-amber/50 hover:bg-deep"
             >
               <span className="grid h-5 w-5 place-items-center rounded bg-gradient-to-br from-[#f6851b] to-[#e2761d]">

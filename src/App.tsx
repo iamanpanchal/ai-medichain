@@ -15,6 +15,7 @@ import {
 } from './components/PatientPages';
 import { AccessSent, DoctorDashboard, SearchPatients } from './components/DoctorPages';
 import { ACCESS_APPROVED, ACCESS_PENDING, ACCESS_REJECTED, MedRecord, RECORDS, Role } from './data';
+import { clearAuthSession, getStoredSession, type AuthSession } from './services/auth';
 
 type Stage = 'landing' | 'auth' | 'role' | 'app';
 
@@ -22,7 +23,8 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<Theme>(() => localStorage.getItem('medichain-theme') === 'light' ? 'light' : 'dark');
-  const [role, setRole] = useState<Role>('patient');
+  const [authSession, setAuthSession] = useState<AuthSession | null>(() => getStoredSession());
+  const [role, setRole] = useState<Role>(() => getStoredSession()?.user.role ?? 'patient');
   const [page, setPage] = useState(() => location.pathname.startsWith('/app/') ? location.pathname.split('/')[2] || 'dashboard' : 'dashboard');
   const [records, setRecords] = useState<MedRecord[]>(RECORDS);
   const [selRecord, setSelRecord] = useState<MedRecord>(RECORDS[0]);
@@ -46,6 +48,20 @@ export default function App() {
   useEffect(() => {
     if (location.pathname.startsWith('/app/')) setPage(location.pathname.split('/')[2] || 'dashboard');
   }, [location.pathname]);
+
+  useEffect(() => {
+    const stored = getStoredSession();
+    if (stored) {
+      setAuthSession(stored);
+      setRole(stored.user.role);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/app/') && !authSession) {
+      enter('auth');
+    }
+  }, [authSession, location.pathname]);
 
   const go = (p: string) => {
     setPage(p);
@@ -76,9 +92,17 @@ export default function App() {
     window.scrollTo({ top: 0 });
   };
   const logout = () => {
+    clearAuthSession();
+    setAuthSession(null);
+    setRole('patient');
     setSelRecord(RECORDS[0]);
     setAiId('MR-1024');
     enter('landing');
+  };
+  const handleLogin = (nextRole: Role, session: AuthSession) => {
+    setAuthSession(session);
+    setRole(nextRole);
+    enter(nextRole === 'patient' ? 'app' : 'role');
   };
   const stage: Stage = location.pathname === '/login' ? 'auth' : location.pathname === '/select-role' ? 'role' : location.pathname.startsWith('/app/') ? 'app' : 'landing';
 
@@ -89,8 +113,12 @@ export default function App() {
       {stage === 'landing' && <Landing onGetStarted={() => enter('auth')} theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />}
 =======
       {stage === 'landing' && <><Landing onGetStarted={() => enter('auth')} theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />{landingChatOpen && <ChatPanel records={[]} publicMode onClose={() => setLandingChatOpen(false)} />}<ChatWidget onOpen={() => setLandingChatOpen(true)} /></>}
+<<<<<<< HEAD
 >>>>>>> 2e33143 (add chatbot)
       {stage === 'auth' && <Login onLogin={(r) => { setRole(r); enter('role'); }} onBack={() => enter('landing')} />}
+=======
+      {stage === 'auth' && <Login onLogin={(r, session) => handleLogin(r, session)} onBack={() => enter('landing')} />}
+>>>>>>> cf90090 (Add root and ai files)
       {stage === 'role' && (
         <RoleSelect
           onPick={(r) => {

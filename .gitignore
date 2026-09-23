@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 node_modules/
 dist/
 <<<<<<< HEAD
@@ -8,3 +9,23 @@ dist/
 server/.env
 server/.env.local
 >>>>>>> 2e33143 (add chatbot)
+=======
+node_modules/
+dist/
+
+# Environment files — never commit
+.env
+.env.local
+server/.env
+server/.env.local
+ai/.env
+
+# Prisma generated client
+server/node_modules/
+
+# Python
+ai/__pycache__/
+ai/*.pyc
+ai/venv/
+ai/.venv/
+>>>>>>> cf90090 (Add root and ai files)
