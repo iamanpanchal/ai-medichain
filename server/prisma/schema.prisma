@@ -1,0 +1,148 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  patient
+  doctor
+  hospital
+}
+
+enum RecordType {
+  lab
+  xray
+  mri
+  rx
+  ecg
+}
+
+enum Region {
+  heart
+  resp
+  digestive
+  musco
+}
+
+enum AccessStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ShareStatus {
+  active
+  expired
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String
+  name          String
+  role          Role
+  walletAddress String?
+  avatar        String?
+  initials      String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  records         MedRecord[]     @relation("PatientRecords")
+  accessReceived  AccessRequest[] @relation("PatientAccess")
+  accessSent      AccessRequest[] @relation("DoctorAccess")
+  sharedFrom      SharedAccess[]  @relation("SharedFromPatient")
+  sharedTo        SharedAccess[]  @relation("SharedToDoctor")
+  activities      Activity[]
+
+  @@map("users")
+}
+
+model MedRecord {
+  id        String     @id  // e.g. "MR-1024"
+  title     String
+  type      RecordType
+  source    String
+  date      String
+  region    Region
+  hash      String
+  tx        String
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  patientId String @map("patient_id")
+  patient   User   @relation("PatientRecords", fields: [patientId], references: [id])
+
+  sharedAccess SharedAccess[]
+  aiSummary    AiSummary?
+
+  @@map("records")
+}
+
+model AiSummary {
+  id         String   @id @default(uuid())
+  recordId   String   @unique @map("record_id")
+  record     MedRecord @relation(fields: [recordId], references: [id])
+  blurb      Json     // string[]
+  findings   Json     // Finding[]
+  recs       Json     // string[]
+  conditions Json     // { name, likelihood }[]
+  model      String   @default("claude-sonnet-4-6")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("ai_summaries")
+}
+
+model AccessRequest {
+  id        String       @id @default(uuid())
+  purpose   String
+  status    AccessStatus @default(pending)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  patientId String @map("patient_id")
+  patient   User   @relation("PatientAccess", fields: [patientId], references: [id])
+
+  doctorId String @map("doctor_id")
+  doctor   User   @relation("DoctorAccess", fields: [doctorId], references: [id])
+
+  @@map("access_requests")
+}
+
+model SharedAccess {
+  id        String      @id @default(uuid())
+  status    ShareStatus @default(active)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  patientId String    @map("patient_id")
+  patient   User      @relation("SharedFromPatient", fields: [patientId], references: [id])
+
+  doctorId  String    @map("doctor_id")
+  doctor    User      @relation("SharedToDoctor", fields: [doctorId], references: [id])
+
+  recordId  String    @map("record_id")
+  record    MedRecord @relation(fields: [recordId], references: [id])
+
+  @@map("shared_access")
+}
+
+model Activity {
+  id        String   @id @default(uuid())
+  icon      String
+  color     String
+  title     String
+  meta      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("activities")
+}

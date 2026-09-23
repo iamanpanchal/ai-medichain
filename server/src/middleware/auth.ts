@@ -1,47 +1,51 @@
-import type { NextFunction, Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { AppError } from '../utils/AppError.js';
-import type { JwtPayload, Role } from '../types/index.js';
-import type { AuthUser } from '../types/http.js';
 
-function readToken(req: Request) {
-  const header = req.headers.authorization;
-  if (header?.startsWith('Bearer ')) return header.slice(7);
-  return undefined;
+export interface JwtPayload {
+  sub: string;  // user id
+  email: string;
+  role: string;
+  name: string;
 }
 
-export function requireAuth(req: Request, _res: Response, next: NextFunction) {
-  const token = readToken(req);
-  if (!token) return next(AppError.unauthorized());
-  const secret = process.env.JWT_SECRET;
-  if (!secret) return next(AppError.unauthorized('Server auth is not configured', 'AUTH_MISCONFIGURED'));
-  try {
-    const payload = jwt.verify(token, secret) as JwtPayload;
-    (req as Request & { user: AuthUser }).user = { userId: payload.userId, role: payload.role };
-    next();
-  } catch {
-    next(AppError.unauthorized('Invalid or expired session', 'TOKEN_INVALID'));
+// Augment Express request type
+declare global {
+  namespace Express {
+    interface Request {
+      user?: JwtPayload;
+    }
   }
 }
 
-export function requireRole(...roles: Role[]) {
-  return (req: Request, _res: Response, next: NextFunction) => {
-    const user = (req as Request & { user?: AuthUser }).user;
-    if (!user) return next(AppError.unauthorized());
-    if (!roles.includes(user.role)) return next(AppError.forbidden());
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) {
+    res.status(401).json({ success: false, message: 'No token provided.' });
+    return;
+  }
+
+  const token = header.slice(7);
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    res.status(500).json({ success: false, message: 'JWT secret not configured.' });
+    return;
+  }
+
+  try {
+    const payload = jwt.verify(token, secret) as JwtPayload;
+    req.user = payload;
+    next();
+  } catch {
+    res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+  }
+}
+
+export function requireRole(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      res.status(403).json({ success: false, message: 'Insufficient permissions.' });
+      return;
+    }
     next();
   };
-}
-
-export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
-  const token = readToken(req);
-  const secret = process.env.JWT_SECRET;
-  if (!token || !secret) return next();
-  try {
-    const payload = jwt.verify(token, secret) as JwtPayload;
-    (req as Request & { user: AuthUser }).user = { userId: payload.userId, role: payload.role };
-  } catch {
-    /* ignore optional failures */
-  }
-  next();
 }
