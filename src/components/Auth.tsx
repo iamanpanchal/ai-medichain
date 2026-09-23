@@ -3,7 +3,7 @@ import { cn } from '../utils/cn';
 import { I, Logo, Reveal, useToast } from './ui';
 import { IMG_LOGIN, Role } from '../data';
 import { COPY } from '../content';
-import { loginWithEmail, type AuthSession } from '../services/auth';
+import { loginWithEmail, registerWithEmail, type AuthSession } from '../services/auth';
 
 const ROLE_TABS: { id: Role; label: string; color: string; icon: string }[] = [
   { id: 'patient', label: 'Patient', color: '#2e7cf6', icon: 'user' },
@@ -13,6 +13,8 @@ const ROLE_TABS: { id: Role; label: string; color: string; icon: string }[] = [
 
 export function Login({ onLogin, onBack }: { onLogin: (r: Role, session: AuthSession) => void; onBack: () => void }) {
   const toast = useToast();
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('patient');
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
@@ -20,20 +22,25 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role, session: AuthSes
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  const submit = async (via: string) => {
-    if (!email.trim() || pw.length < 6) {
-      toast('Enter a valid email and a password of at least 6 characters.', 'warn');
+  const submit = async (_via: string) => {
+    if (!email.trim() || pw.length < 6 || (isRegistering && !name.trim())) {
+      toast('Please fill in all fields (password min 6 chars).', 'warn');
       return;
     }
 
     setBusy(true);
     try {
-      const session = await loginWithEmail(email.trim(), pw);
+      let session;
+      if (isRegistering) {
+        session = await registerWithEmail(email.trim(), pw, name.trim(), role);
+      } else {
+        session = await loginWithEmail(email.trim(), pw);
+      }
       const nextRole = session.user.role ?? role;
-      toast(`Wallet ${via} — signed in as ${session.user.name || session.user.email}`, 'ok');
+      toast(`Welcome ${session.user.name || session.user.email}!`, 'ok');
       onLogin(nextRole, session);
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Unable to sign in right now.', 'warn');
+      toast(error instanceof Error ? error.message : 'Authentication failed.', 'warn');
     } finally {
       setBusy(false);
     }
@@ -54,8 +61,8 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role, session: AuthSes
       <main className="grid flex-1 items-center gap-8 px-5 py-8 lg:grid-cols-2 lg:gap-14 lg:px-10">
         <Reveal>
           <div className="mx-auto w-full max-w-md">
-            <h1 className="font-display text-3xl font-bold tracking-tight text-snow md:text-4xl">Welcome Back</h1>
-            <p className="mt-2 text-sm text-mist">Access your health records securely.</p>
+            <h1 className="font-display text-3xl font-bold tracking-tight text-snow md:text-4xl">{isRegistering ? 'Create Account' : 'Welcome Back'}</h1>
+            <p className="mt-2 text-sm text-mist">{isRegistering ? 'Join MediChain today.' : 'Access your health records securely.'}</p>
 
             <div className="mt-6 grid grid-cols-3 gap-2 rounded-xl border border-line bg-deep/50 p-1.5">
               {ROLE_TABS.map((t) => (
@@ -77,6 +84,12 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role, session: AuthSes
                 void submit('verified');
               }}
             >
+              {isRegistering && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-mist">Full Name</label>
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" type="text" className="field" />
+                </div>
+              )}
               <div>
                 <label className="mb-1.5 block text-xs font-bold text-mist">{COPY.auth.email}</label>
                 <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" type="email" className="field" />
@@ -91,15 +104,23 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role, session: AuthSes
                 </div>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <label className="flex cursor-pointer items-center gap-2 font-semibold text-mist">
-                  <span onClick={() => setRemember(!remember)} className={cn('grid h-4.5 w-4.5 place-items-center rounded border transition-colors', remember ? 'border-pulse bg-pulse text-white' : 'border-line bg-ink text-transparent')}>
-                    <I n="check" className="h-3 w-3" sw={3} />
-                  </span>
-                  Remember me
-                </label>
-                <button type="button" onClick={() => toast('Reset link sent to your email (demo).', 'info')} className="font-bold text-pulse2 transition-colors hover:text-cy">
-                  Forgot password?
-                </button>
+                {isRegistering ? (
+                  <label className="flex cursor-pointer items-center gap-2 font-semibold text-mist">
+                    By signing up, you agree to our Terms.
+                  </label>
+                ) : (
+                  <>
+                    <label className="flex cursor-pointer items-center gap-2 font-semibold text-mist">
+                      <span onClick={() => setRemember(!remember)} className={cn('grid h-4.5 w-4.5 place-items-center rounded border transition-colors', remember ? 'border-pulse bg-pulse text-white' : 'border-line bg-ink text-transparent')}>
+                        <I n="check" className="h-3 w-3" sw={3} />
+                      </span>
+                      Remember me
+                    </label>
+                    <button type="button" onClick={() => toast('Reset link sent to your email (demo).', 'info')} className="font-bold text-pulse2 transition-colors hover:text-cy">
+                      Forgot password?
+                    </button>
+                  </>
+                )}
               </div>
               <button
                 type="submit"
@@ -107,7 +128,7 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role, session: AuthSes
                 className="group flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition-all disabled:opacity-60"
                 style={{ background: active.color, boxShadow: `0 14px 34px -12px ${active.color}cc` }}
               >
-                {busy ? 'Signing in…' : 'Sign In'}
+                {busy ? (isRegistering ? 'Creating Account…' : 'Signing in…') : (isRegistering ? 'Create Account' : 'Sign In')}
                 {!busy && <I n="arrow" className="h-4 w-4 transition-transform group-hover:translate-x-1" />}
               </button>
             </form>
@@ -125,9 +146,9 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role, session: AuthSes
               {COPY.auth.metamask}
             </button>
             <p className="mt-5 text-center text-xs font-semibold text-mist">
-              Don't have an account?{' '}
-              <button onClick={() => toast('Account creation opens with your on-chain wallet.', 'info')} className="font-bold text-pulse2 hover:text-cy">
-                {COPY.auth.signup}
+              {isRegistering ? 'Already have an account? ' : "Don't have an account? "}
+              <button onClick={() => setIsRegistering(!isRegistering)} className="font-bold text-pulse2 hover:text-cy">
+                {isRegistering ? 'Sign In' : COPY.auth.signup}
               </button>
             </p>
           </div>

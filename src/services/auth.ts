@@ -86,3 +86,13 @@ export async function loginWithEmail(email: string, password: string) {
   persistAuthSession(session);
   return session;
 }
+
+export async function registerWithEmail(email: string, password: string, name: string, role: string) {
+  const session = await apiRequest<AuthSession>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, name, role }),
+  });
+
+  persistAuthSession(session);
+  return session;
+}
