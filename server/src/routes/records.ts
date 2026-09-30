@@ -1,7 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '../db/client';
 import { requireAuth } from '../middleware/auth';
+import { canAccessRecord, visibleRecordsWhere } from '../services/authorization';
 import { anchorRecord, verifyRecord } from '../blockchain/contract';
 
 const router = Router();
@@ -9,12 +11,20 @@ const router = Router();
 // All record routes require authentication
 router.use(requireAuth);
 
+// Fields needed to authorise a single record. `sharedAccess` is required for
+// non-patients, whose ownership of a record is proven by a grant, not by id.
+const accessSelect = {
+  patientId: true,
+  sharedAccess: { select: { doctorId: true, status: true } },
+} as const;
+
 // ── GET /api/records ──────────────────────────────────────────────────────────
-// Returns all records for the authenticated patient
+// Patients see their own records; doctors/hospitals see only records shared
+// with them via an approved access request.
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const records = await prisma.medRecord.findMany({
-      where: { patientId: req.user!.sub },
+      where: visibleRecordsWhere(req.user!),
       orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: records });
@@ -28,7 +38,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const record = await prisma.medRecord.findUnique({
       where: { id: req.params.id as string },
-      include: { aiSummary: true },
+      include: { aiSummary: true, ...accessSelect },
     });
 
     if (!record) {
@@ -36,8 +46,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       return;
     }
 
-    // Only the owning patient can view their own record
-    if (record.patientId !== req.user!.sub && req.user!.role === 'patient') {
+    // Ownership alone is not enough for a doctor — they need an active grant.
+    if (!canAccessRecord(req.user!, record)) {
       res.status(403).json({ success: false, message: 'Access denied.' });
       return;
     }
@@ -61,6 +71,9 @@ const CreateRecordSchema = z.object({
 });
 
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  // Declared outside the try so the Prisma error branch below can name it.
+  let recordId = '';
+
   try {
     if (req.user!.role !== 'patient') {
       res.status(403).json({ success: false, message: 'Only patients can upload records.' });
@@ -68,6 +81,13 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const body = CreateRecordSchema.parse(req.body);
+    recordId = body.id;
+
+    const existing = await prisma.medRecord.findUnique({ where: { id: body.id } });
+    if (existing) {
+      res.status(409).json({ success: false, message: `Record ${body.id} already exists.` });
+      return;
+    }
 
     // Anchor on blockchain (non-blocking — we don't fail the upload if chain is unavailable)
     let txHash = body.tx;
@@ -98,6 +118,12 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     res.status(201).json({ success: true, data: record });
   } catch (err) {
+    // A concurrent upload can still win the race between the check above and
+    // the insert; surface that as a conflict rather than a 500.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      res.status(409).json({ success: false, message: `Record ${recordId} already exists.` });
+      return;
+    }
     next(err);
   }
 });
@@ -106,9 +132,17 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 // Verify a record against the blockchain
 router.get('/:id/verify', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const record = await prisma.medRecord.findUnique({ where: { id: req.params.id as string } });
+    const record = await prisma.medRecord.findUnique({
+      where: { id: req.params.id as string },
+      include: accessSelect,
+    });
     if (!record) {
       res.status(404).json({ success: false, message: 'Record not found.' });
+      return;
+    }
+
+    if (!canAccessRecord(req.user!, record)) {
+      res.status(403).json({ success: false, message: 'Access denied.' });
       return;
     }
 

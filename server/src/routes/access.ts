@@ -134,6 +134,37 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
       data:  { status: body.action },
     });
 
+    // Approving must actually grant read access, otherwise the doctor stays
+    // locked out. Rejecting must take it away again, so a later re-approval is
+    // the only way back in.
+    if (body.action === 'approved') {
+      const records = await prisma.medRecord.findMany({
+        where: { patientId: ar.patientId },
+        select: { id: true },
+      });
+
+      // Delete-then-create keeps the operation idempotent if a grant already
+      // exists (e.g. re-approval after a revocation).
+      await prisma.sharedAccess.deleteMany({
+        where: { patientId: ar.patientId, doctorId: ar.doctorId },
+      });
+
+      if (records.length > 0) {
+        await prisma.sharedAccess.createMany({
+          data: records.map((record) => ({
+            patientId: ar.patientId,
+            doctorId:  ar.doctorId,
+            recordId:  record.id,
+            status:    'active' as const,
+          })),
+        });
+      }
+    } else {
+      await prisma.sharedAccess.deleteMany({
+        where: { patientId: ar.patientId, doctorId: ar.doctorId },
+      });
+    }
+
     // Log activity
     await prisma.activity.create({
       data: {
@@ -170,6 +201,12 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
     }
 
     await prisma.accessRequest.delete({ where: { id: req.params.id as string } });
+
+    // Withdrawing a pending request revokes anything a prior approval granted.
+    await prisma.sharedAccess.deleteMany({
+      where: { patientId: ar.patientId, doctorId: ar.doctorId },
+    });
+
     res.json({ success: true, message: 'Request withdrawn.' });
   } catch (err) {
     next(err);

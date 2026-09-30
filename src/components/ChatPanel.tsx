@@ -13,7 +13,7 @@ function loadHistory(key: string): DisplayMessage[] {
   try { return JSON.parse(sessionStorage.getItem(key) ?? '[]'); } catch { return []; }
 }
 
-export function ChatPanel({ records, focusedRecord, onClose, publicMode = false }: { records: MedRecord[]; focusedRecord?: MedRecord; onClose: () => void; publicMode?: boolean }) {
+export function ChatPanel({ focusedRecord, onClose, publicMode = false }: { focusedRecord?: MedRecord; onClose: () => void; publicMode?: boolean }) {
   const historyKey = publicMode ? `${HISTORY_KEY}-public` : HISTORY_KEY;
   const [messages, setMessages] = useState<DisplayMessage[]>(() => loadHistory(historyKey));
   const [input, setInput] = useState('');
@@ -35,9 +35,9 @@ export function ChatPanel({ records, focusedRecord, onClose, publicMode = false 
     setMessages(current => [...current, user, { id: assistantId, role: 'assistant', content: '' }]);
     setInput(''); setThinking(true);
     try {
-      await streamChat([...messages, user].map(({ role, content: message }) => ({ role, content: message })), records, focusedRecord, (token) => {
+      await streamChat([...messages, user].map(({ role, content: message }) => ({ role, content: message })), (token) => {
         setMessages(current => current.map(message => message.id === assistantId ? { ...message, content: message.content + token } : message));
-      }, publicMode ? 'public' : 'patient');
+      }, publicMode ? 'public' : 'patient', focusedRecord?.id);
     } catch {
       setMessages(current => current.map(message => message.id === assistantId ? { ...message, content: 'I’m unable to connect right now. Please try again.' } : message));
     } finally { setThinking(false); }

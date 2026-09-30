@@ -9,6 +9,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function anthropicDevProxy(apiKey: string | undefined): Plugin {
+  // Dev-only stand-in for the public assistant on the landing page, so the
+  // browser never holds the key. The system prompt is fixed here rather than
+  // forwarded from the request body, matching the server's own behaviour.
+  const PUBLIC_SYSTEM_PROMPT = `You are MediChain's public website assistant. Help visitors understand MediChain and find login, sign in, and sign up options. Do not ask for, receive, or discuss personal health information. Do not provide medical guidance. Be concise and direct visitors to a healthcare provider or emergency services if they raise a medical concern.`;
+
   return {
     name: "medichain-anthropic-dev-proxy",
 
@@ -35,6 +40,12 @@ function anthropicDevProxy(apiKey: string | undefined): Plugin {
         try {
           const payload = JSON.parse(body);
 
+          if (!Array.isArray(payload?.messages) || payload.messages.length === 0) {
+            res.statusCode = 400;
+            res.end("messages are required.");
+            return;
+          }
+
           const upstream = await fetch(
             "https://api.anthropic.com/v1/messages",
             {
@@ -48,7 +59,7 @@ function anthropicDevProxy(apiKey: string | undefined): Plugin {
                 model: "claude-sonnet-4-6",
                 max_tokens: 700,
                 stream: true,
-                system: payload.system,
+                system: PUBLIC_SYSTEM_PROMPT,
                 messages: payload.messages,
               }),
             }

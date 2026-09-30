@@ -1,60 +1,43 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-** ai-medichain
-If you choose PostgreSQL:
-
-React.js
-    ↓
-Node.js + Express
-    ↓
-Prisma ORM
-    ↓
-PostgreSQL
-
-Blockchain remains separate:
-
-Node.js
-    ↓
-Ethers.js
-    ↓
-Solidity Smart Contract
-    ↓
-Ethereum / Hardhat
-
-And your medical-file flow:
-
-Medical File
-     ↓
-Secure File Storage
-     ↓
-PostgreSQL → metadata + file reference
-     ↓
-Hash
-     ↓
-Blockchain → verification
-=======
-** ai-medichain
->>>>>>> 2e33143 (add chatbot)
-=======
 # MediChain — Developer Guide
+
+Secure healthcare record management with on-chain integrity verification and
+AI-assisted plain-language summaries.
 
 ## Architecture
 
 ```
 ai-medichain/
-├── src/          React frontend (Vite + TypeScript)
-├── server/       Node.js / Express backend
+├── src/          React frontend (Vite + TypeScript + Tailwind)
+├── server/       Node.js / Express backend (Prisma + PostgreSQL)
 ├── ai/           Python FastAPI AI microservice
+├── api/          Standalone serverless AI proxy (optional)
 └── .env.example  Root environment template
 ```
+
+### Request flow
+
+```
+React (Vite :5173)
+   │  Bearer JWT
+   ▼
+Express API (:5000) ────► PostgreSQL (Prisma)
+   │                              metadata only
+   ├───► Ethereum / Hardhat   record SHA-256 hash anchoring
+   ├───► Anthropic API        chat streaming + summaries
+   └───► Python FastAPI (:8000)  optional summarisation
+```
+
+Only the **hash** of a medical record is written on-chain. Record contents never
+leave PostgreSQL, so integrity is provable without exposing PHI.
 
 ## Quick Start
 
 ### 1. Prerequisites
+
 - Node.js ≥ 20
 - PostgreSQL ≥ 15
-- Python ≥ 3.11 (for AI service)
-- (Optional) Hardhat or Ganache for local Ethereum
+- Python ≥ 3.11 (for the optional AI service)
+- (Optional) Hardhat or Ganache for a local Ethereum node
 
 ### 2. Environment Setup
 
@@ -66,6 +49,8 @@ cp .env.example .env
 cp .env.example server/.env
 # Then edit server/.env and fill in DATABASE_URL, JWT_SECRET, ANTHROPIC_API_KEY
 ```
+
+`ANTHROPIC_API_KEY` is server-side only — never expose it as a `VITE_*` variable.
 
 ### 3. Backend Setup
 
@@ -93,7 +78,10 @@ npm run dev
 # → http://localhost:5000
 ```
 
-### 5. Python AI Microservice (optional — backend has inline fallback)
+### 5. Python AI Microservice (optional)
+
+The backend falls back to calling Anthropic inline when `AI_SERVICE_URL` is unset
+or empty. Leave it blank to skip this step entirely.
 
 ```bash
 cd ai
@@ -120,7 +108,12 @@ npm run dev
 
 ## API Reference
 
+All protected endpoints require an `Authorization: Bearer <token>` header.
+Responses use a uniform envelope: `{ success: true, data }` or
+`{ success: false, message }`.
+
 ### Auth
+
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/auth/register` | Register a new user |
@@ -128,14 +121,19 @@ npm run dev
 | GET  | `/api/auth/me` | Get current user (Bearer token) |
 
 ### Records
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET  | `/api/records` | List patient's records |
+| GET  | `/api/records` | List records visible to the caller |
 | POST | `/api/records` | Upload a new record (anchors on-chain) |
 | GET  | `/api/records/:id` | Get record + AI summary |
 | GET  | `/api/records/:id/verify` | Verify hash against blockchain |
 
+Patients see only their own records. Doctors and hospitals see only records that
+have been explicitly shared with them via an approved access request.
+
 ### Access Requests
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET  | `/api/access` | List requests (by role) |
@@ -143,13 +141,21 @@ npm run dev
 | PATCH | `/api/access/:id` | Patient approves/rejects |
 | DELETE | `/api/access/:id` | Doctor withdraws |
 
+Approving a request creates a `SharedAccess` grant; rejecting or withdrawing one
+removes any grant it created. Grants are what authorise record reads.
+
 ### AI
+
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/ai/chat` | Secure streaming chat proxy |
 | POST | `/api/ai/summarize/:id` | Generate/refresh AI summary |
 | GET  | `/api/ai/summary/:id` | Fetch stored summary |
 | GET  | `/api/ai/activity` | Get activity log |
+
+The system prompt is owned by the server. Clients send only message history and
+a mode selector; record context is loaded server-side and delimited as
+untrusted data, so a client cannot override the assistant's safety rules.
 
 ---
 
@@ -165,11 +171,29 @@ npm run dev
 
 ## Blockchain (Local Hardhat)
 
+The contract lives at `server/src/blockchain/MediChain.sol`.
+
 ```bash
-# Install Hardhat globally or per-project
 npx hardhat node          # starts local JSON-RPC on :8545
 npx hardhat compile       # compile MediChain.sol
 npx hardhat run scripts/deploy.js --network localhost
 # Copy the printed contract address into server/.env → CONTRACT_ADDRESS
+# Set WALLET_PRIVATE_KEY to the deployer's private key (it must be the
+# contract owner, since anchorRecord/updateRecord are onlyOwner).
 ```
->>>>>>> cf90090 (Add root and ai files)
+
+If the chain is unreachable, uploads still succeed and `/verify` reports
+`verified: false` rather than failing the request.
+
+---
+
+## Scripts
+
+| Location | Command | Purpose |
+|----------|---------|---------|
+| root | `npm run dev` | Vite dev server |
+| root | `npm run typecheck` | `tsc --noEmit` |
+| server | `npm run dev` | Nodemon + ts-node API |
+| server | `npm test` | Jest + Supertest |
+| server | `npm run typecheck` | `tsc --noEmit` |
+| server | `npm run db:seed` | Seed demo data |

@@ -1,31 +1,31 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import prisma from '../db/client';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, readAuthUser } from '../middleware/auth';
+import { canAccessRecord, visibleRecordsWhere } from '../services/authorization';
+import { buildPatientSystemPrompt, buildSummaryUserPrompt, PUBLIC_SYSTEM_PROMPT, SUMMARY_SYSTEM_PROMPT } from '../ai/prompts';
 
 const router = Router();
 
-const SYSTEM_PATIENT = `You are MediChain AI Assistant. Help a patient understand only the MediChain platform and the medical-record context supplied to you.
-
-Safety rules:
-- Never diagnose a condition, prescribe treatment, recommend medication changes, or give medication dosage advice.
-- Never invent a medical fact, test result, record, clinician, or record detail. Say when the supplied records do not contain the answer.
-- If the user describes symptoms that may be an emergency (for example trouble breathing, chest pain, stroke symptoms, severe bleeding, loss of consciousness, or immediate danger), immediately tell them to contact local emergency services or go to the nearest emergency department. Do not continue with routine guidance.
-- For any health interpretation, end with this exact reminder: "Please consult a healthcare provider for medical advice."
-- Be concise, calm, and non-diagnostic. Explain technical words in plain language.`;
-
-const SYSTEM_PUBLIC = `You are MediChain's public website assistant. Help visitors understand MediChain and find login, sign in, and sign up options. Do not ask for, receive, or discuss personal health information. Do not provide medical guidance. Be concise and direct visitors to a healthcare provider or emergency services if they raise a medical concern.`;
+const SUMMARY_MODEL = 'claude-sonnet-4-6';
+const CHAT_MODEL = 'claude-sonnet-4-6';
 
 // ── POST /api/ai/chat ─────────────────────────────────────────────────────────
-// Secure proxy to Anthropic — API key never reaches the browser
+// Streaming proxy to Anthropic — the API key never reaches the browser, and
+// neither does the system prompt. The client cannot supply `system`.
 const ChatSchema = z.object({
-  messages: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })),
-  system:   z.string().optional(),
+  messages: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })).min(1),
   mode:     z.enum(['patient', 'public']).default('patient'),
+  // Optional selector for which record the user is currently viewing. It is
+  // only honoured if it matches a record the caller may read.
+  focusedRecordId: z.string().max(64).optional(),
 });
 
 router.post('/chat', async (req: Request, res: Response, next: NextFunction) => {
+  let streamed = false;
+
   try {
     const body = ChatSchema.parse(req.body);
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -34,18 +34,32 @@ router.post('/chat', async (req: Request, res: Response, next: NextFunction) => 
       return;
     }
 
-    const client = new Anthropic({ apiKey });
+    // Patient mode requires a signed-in caller; public mode serves anonymous
+    // visitors and never touches patient data.
+    const user = readAuthUser(req);
+    if (body.mode === 'patient' && !user) {
+      res.status(401).json({ success: false, message: 'Sign in to use the patient assistant.' });
+      return;
+    }
 
-    // Use the system the frontend sends (it already embeds the record context)
-    // or fall back to the mode-appropriate system prompt
-    const systemPrompt = body.system ?? (body.mode === 'public' ? SYSTEM_PUBLIC : SYSTEM_PATIENT);
+    let systemPrompt = PUBLIC_SYSTEM_PROMPT;
+    if (body.mode === 'patient' && user) {
+      const records = await prisma.medRecord.findMany({
+        where: visibleRecordsWhere(user),
+        orderBy: { createdAt: 'desc' },
+      });
+      systemPrompt = buildPatientSystemPrompt(records, body.focusedRecordId);
+    }
+
+    const client = new Anthropic({ apiKey });
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    streamed = true;
 
     const stream = await client.messages.stream({
-      model:      'claude-sonnet-4-6',
+      model:      CHAT_MODEL,
       max_tokens: 700,
       system:     systemPrompt,
       messages:   body.messages as Anthropic.MessageParam[],
@@ -57,6 +71,12 @@ router.post('/chat', async (req: Request, res: Response, next: NextFunction) => 
 
     res.end();
   } catch (err) {
+    // Once the SSE stream has started we can no longer send a JSON error
+    // envelope, so just terminate the stream.
+    if (streamed) {
+      res.end();
+      return;
+    }
     next(err);
   }
 });
@@ -72,23 +92,28 @@ router.post('/summarize/:recordId', requireAuth, async (req: Request, res: Respo
       return;
     }
 
-    const record = await prisma.medRecord.findUnique({ where: { id: recordId as string } });
+    const record = await prisma.medRecord.findUnique({
+      where: { id: recordId as string },
+      include: { sharedAccess: { select: { doctorId: true, status: true } } },
+    });
     if (!record) {
       res.status(404).json({ success: false, message: 'Record not found.' });
       return;
     }
 
-    // Only the patient who owns the record can generate a summary
-    if (req.user!.role === 'patient' && record.patientId !== req.user!.sub) {
+    // Same rule as reading the record: patients need ownership, everyone else
+    // needs an active SharedAccess grant.
+    if (!canAccessRecord(req.user!, record)) {
       res.status(403).json({ success: false, message: 'Access denied.' });
       return;
     }
 
-    const aiServiceUrl = process.env.AI_SERVICE_URL;
+    // Optional: delegate to the Python FastAPI microservice. Unset or blank
+    // means use the inline Anthropic path below.
+    const aiServiceUrl = process.env.AI_SERVICE_URL?.trim();
     let summaryData: unknown;
 
     if (aiServiceUrl) {
-      // Delegate to the Python FastAPI microservice
       const aiRes = await fetch(`${aiServiceUrl}/summarize`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -97,43 +122,26 @@ router.post('/summarize/:recordId', requireAuth, async (req: Request, res: Respo
       if (!aiRes.ok) throw new Error('AI microservice returned an error.');
       summaryData = (await aiRes.json() as { data: unknown }).data;
     } else {
-      // Inline fallback via Anthropic SDK directly
       const client = new Anthropic({ apiKey });
-      const prompt = `You are a medical AI summarising a record for a patient in plain language.
-
-Record details:
-- ID: ${record.id}
-- Title: ${record.title}
-- Type: ${record.type}
-- Source: ${record.source}
-- Date: ${record.date}
-
-Return a JSON object with this exact shape:
-{
-  "blurb": ["short 1–2 sentence plain-language summary"],
-  "findings": [{ "label": "...", "value": "...", "status": "normal|low|high|warn" }],
-  "recs": ["recommendation 1", "recommendation 2"],
-  "conditions": [{ "name": "...", "likelihood": "Likely|Possible|Confirmed|Active" }]
-}
-
-Only return valid JSON. Do not wrap in markdown.`;
-
       const msg = await client.messages.create({
-        model:      'claude-sonnet-4-6',
+        model:      SUMMARY_MODEL,
         max_tokens: 800,
-        messages:   [{ role: 'user', content: prompt }],
+        system:     SUMMARY_SYSTEM_PROMPT,
+        messages:   [{ role: 'user', content: buildSummaryUserPrompt(record) }],
       });
 
-      const raw = msg.content[0].type === 'text' ? msg.content[0].text : '{}';
-      summaryData = JSON.parse(raw);
+      const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '{}';
+      // Models occasionally wrap JSON in a markdown fence despite instructions.
+      const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
+      summaryData = JSON.parse(cleaned || '{}');
     }
 
     // Upsert the AI summary in the database
-    const data = summaryData as any;
+    const data = summaryData as Prisma.AiSummaryUncheckedCreateInput;
     const saved = await prisma.aiSummary.upsert({
       where:  { recordId: recordId as string },
-      update: { ...data, model: 'claude-sonnet-4-6' },
-      create: { recordId: recordId as string, ...data, model: 'claude-sonnet-4-6' },
+      update: { ...data, model: SUMMARY_MODEL },
+      create: { ...data, recordId: recordId as string, model: SUMMARY_MODEL },
     });
 
     // Log activity
@@ -157,14 +165,22 @@ Only return valid JSON. Do not wrap in markdown.`;
 // Fetch a previously generated summary
 router.get('/summary/:recordId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const summary = await prisma.aiSummary.findUnique({
-      where: { recordId: req.params.recordId as string },
+    const record = await prisma.medRecord.findUnique({
+      where: { id: req.params.recordId as string },
+      include: { sharedAccess: { select: { doctorId: true, status: true } }, aiSummary: true },
     });
-    if (!summary) {
+
+    if (!record?.aiSummary) {
       res.status(404).json({ success: false, message: 'No summary found. Generate one first.' });
       return;
     }
-    res.json({ success: true, data: summary });
+
+    if (!canAccessRecord(req.user!, record)) {
+      res.status(403).json({ success: false, message: 'Access denied.' });
+      return;
+    }
+
+    res.json({ success: true, data: record.aiSummary });
   } catch (err) {
     next(err);
   }

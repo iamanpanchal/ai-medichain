@@ -39,7 +39,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     res.status(401).json({ success: false, message: 'Invalid or expired token.' });
   }
 }
-
 export function requireRole(...roles: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user || !roles.includes(req.user.role)) {
@@ -48,4 +47,24 @@ export function requireRole(...roles: string[]) {
     }
     next();
   };
+}
+
+/**
+ * Verifies a Bearer token if one is present, without rejecting the request.
+ * Used by endpoints that are public but personalise themselves for a signed-in
+ * caller (for example the AI chat proxy, which serves anonymous visitors in
+ * public mode and record-aware patients in patient mode).
+ */
+export function readAuthUser(req: Request): JwtPayload | null {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return null;
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return null;
+
+  try {
+    return jwt.verify(header.slice(7), secret) as JwtPayload;
+  } catch {
+    return null;
+  }
 }
