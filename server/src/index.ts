@@ -6,6 +6,7 @@ import authRouter    from './routes/auth';
 import recordsRouter from './routes/records';
 import accessRouter  from './routes/access';
 import aiRouter      from './routes/ai';
+import patientsRouter from './routes/patients';
 import { errorHandler, notFound } from './middleware/error';
 
 const app  = express();
@@ -32,10 +33,11 @@ app.get('/health', (_req, res) => {
 });
 
 // ── API routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth',    authRouter);
-app.use('/api/records', recordsRouter);
-app.use('/api/access',  accessRouter);
-app.use('/api/ai',      aiRouter);
+app.use('/api/auth',     authRouter);
+app.use('/api/records',  recordsRouter);
+app.use('/api/access',   accessRouter);
+app.use('/api/ai',       aiRouter);
+app.use('/api/patients', patientsRouter);
 
 // ── 404 + global error handler ────────────────────────────────────────────────
 app.use(notFound);

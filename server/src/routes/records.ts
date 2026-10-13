@@ -11,11 +11,11 @@ const router = Router();
 // All record routes require authentication
 router.use(requireAuth);
 
-// Fields needed to authorise a single record. `sharedAccess` is required for
+// Fields needed to authorise a single record. `shared_access` is required for
 // non-patients, whose ownership of a record is proven by a grant, not by id.
 const accessSelect = {
-  patientId: true,
-  sharedAccess: { select: { doctorId: true, status: true } },
+  patient_id: true,
+  shared_access: { select: { doctor_id: true, status: true } } as any,
 } as const;
 
 // ── GET /api/records ──────────────────────────────────────────────────────────
@@ -23,9 +23,9 @@ const accessSelect = {
 // with them via an approved access request.
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const records = await prisma.medRecord.findMany({
+    const records = await prisma.records.findMany({
       where: visibleRecordsWhere(req.user!),
-      orderBy: { createdAt: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
     res.json({ success: true, data: records });
   } catch (err) {
@@ -36,9 +36,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 // ── GET /api/records/:id ──────────────────────────────────────────────────────
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const record = await prisma.medRecord.findUnique({
+    const record = await prisma.records.findUnique({
       where: { id: req.params.id as string },
-      include: { aiSummary: true, ...accessSelect },
+      include: {
+        ai_summaries: true,
+        shared_access: { select: { doctor_id: true, status: true } } as any,
+      },
     });
 
     if (!record) {
@@ -83,7 +86,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     const body = CreateRecordSchema.parse(req.body);
     recordId = body.id;
 
-    const existing = await prisma.medRecord.findUnique({ where: { id: body.id } });
+    const existing = await prisma.records.findUnique({ where: { id: body.id } });
     if (existing) {
       res.status(409).json({ success: false, message: `Record ${body.id} already exists.` });
       return;
@@ -97,18 +100,18 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       console.warn('[blockchain] Anchor failed, using provided tx:', chainErr);
     }
 
-    const record = await prisma.medRecord.create({
+    const record = await prisma.records.create({
       data: {
         ...body,
         tx: txHash,
-        patientId: req.user!.sub,
+        patient_id: req.user!.sub,
       },
     });
 
     // Log activity
-    await prisma.activity.create({
+    await prisma.activities.create({
       data: {
-        userId: req.user!.sub,
+        user_id: req.user!.sub,
         icon:   'upload',
         color:  '#2e7cf6',
         title:  `${record.title} uploaded`,
@@ -132,9 +135,11 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 // Verify a record against the blockchain
 router.get('/:id/verify', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const record = await prisma.medRecord.findUnique({
+    const record = await prisma.records.findUnique({
       where: { id: req.params.id as string },
-      include: accessSelect,
+      include: {
+        shared_access: { select: { doctor_id: true, status: true } } as any,
+      },
     });
     if (!record) {
       res.status(404).json({ success: false, message: 'Record not found.' });

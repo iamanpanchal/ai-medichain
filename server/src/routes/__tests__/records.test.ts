@@ -28,7 +28,7 @@ describe('Records Routes', () => {
         { id: 'MR-2', title: 'X-Ray', patientId: mockPatientId }
       ];
       
-      prismaMock.medRecord.findMany.mockResolvedValue(mockRecords as any);
+      prismaMock.records.findMany.mockResolvedValue(mockRecords as any);
 
       const res = await request(app)
         .get('/api/records')
@@ -37,7 +37,7 @@ describe('Records Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveLength(2);
-      expect(prismaMock.medRecord.findMany).toHaveBeenCalledWith({
+      expect(prismaMock.records.findMany).toHaveBeenCalledWith({
         where: { patientId: mockPatientId },
         orderBy: { createdAt: 'desc' }
       });
@@ -64,8 +64,8 @@ describe('Records Routes', () => {
 
       const expectedDbRecord = { ...newRecord, region: 'heart', patientId: mockPatientId, tx: '0xmocktxhash' };
       
-      prismaMock.medRecord.create.mockResolvedValue(expectedDbRecord as any);
-      prismaMock.activity.create.mockResolvedValue({} as any);
+      prismaMock.records.create.mockResolvedValue(expectedDbRecord as any);
+      prismaMock.activities.create.mockResolvedValue({} as any);
 
       const res = await request(app)
         .post('/api/records')
@@ -75,8 +75,8 @@ describe('Records Routes', () => {
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
       expect(res.body.data.title).toBe('MRI Scan');
-      expect(prismaMock.medRecord.create).toHaveBeenCalled();
-      expect(prismaMock.activity.create).toHaveBeenCalled();
+      expect(prismaMock.records.create).toHaveBeenCalled();
+      expect(prismaMock.activities.create).toHaveBeenCalled();
     });
 
     it('should deny non-patients from uploading', async () => {
@@ -93,6 +93,122 @@ describe('Records Routes', () => {
       expect(res.status).toBe(403);
       expect(res.body.success).toBe(false);
       expect(res.body.message).toContain('Only patients can upload');
+    });
+
+    it('should reject a duplicate record id with 409', async () => {
+      prismaMock.records.findUnique.mockResolvedValue({ id: 'MR-123' } as any);
+
+      const res = await request(app)
+        .post('/api/records')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: 'MR-123',
+          title: 'MRI Scan',
+          type: 'mri',
+          source: 'City Hospital',
+          date: '2026-09-23',
+          region: 'heart',
+          hash: '0xabc123',
+          tx: '0xpending',
+        });
+
+      expect(res.status).toBe(409);
+      expect(prismaMock.records.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('record authorisation', () => {
+    const doctorToken = () =>
+      jwt.sign(
+        { sub: 'doc-1', email: 'doc@test.com', role: 'doctor', name: 'Dr. Test' },
+        process.env.JWT_SECRET!
+      );
+
+    it('should hide other patients records from a patient', async () => {
+      prismaMock.records.findUnique.mockResolvedValue({
+        id: 'MR-1',
+        patientId: 'someone-else',
+        sharedAccess: [],
+      } as any);
+
+      const res = await request(app)
+        .get('/api/records/MR-1')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe('Access denied.');
+    });
+
+    it('should deny a doctor who has no grant for the record', async () => {
+      prismaMock.records.findUnique.mockResolvedValue({
+        id: 'MR-1',
+        patientId: mockPatientId,
+        sharedAccess: [],
+      } as any);
+
+      const res = await request(app)
+        .get('/api/records/MR-1')
+        .set('Authorization', `Bearer ${doctorToken()}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should deny a doctor whose grant is not active', async () => {
+      prismaMock.records.findUnique.mockResolvedValue({
+        id: 'MR-1',
+        patientId: mockPatientId,
+        sharedAccess: [{ doctorId: 'doc-1', status: 'expired' }],
+      } as any);
+
+      const res = await request(app)
+        .get('/api/records/MR-1')
+        .set('Authorization', `Bearer ${doctorToken()}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should allow a doctor with an active grant', async () => {
+      prismaMock.records.findUnique.mockResolvedValue({
+        id: 'MR-1',
+        title: 'X-Ray',
+        patientId: mockPatientId,
+        sharedAccess: [{ doctorId: 'doc-1', status: 'active' }],
+      } as any);
+
+      const res = await request(app)
+        .get('/api/records/MR-1')
+        .set('Authorization', `Bearer ${doctorToken()}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.id).toBe('MR-1');
+    });
+
+    it('should scope the record list to active grants for a doctor', async () => {
+      prismaMock.records.findMany.mockResolvedValue([] as any);
+
+      await request(app)
+        .get('/api/records')
+        .set('Authorization', `Bearer ${doctorToken()}`);
+
+      expect(prismaMock.records.findMany).toHaveBeenCalledWith({
+        where: { sharedAccess: { some: { doctorId: 'doc-1', status: 'active' } } },
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+
+    it('should deny a doctor verifying a record they cannot access', async () => {
+      prismaMock.records.findUnique.mockResolvedValue({
+        id: 'MR-1',
+        patientId: mockPatientId,
+        sharedAccess: [],
+      } as any);
+
+      const res = await request(app)
+        .get('/api/records/MR-1/verify')
+        .set('Authorization', `Bearer ${doctorToken()}`);
+
+      expect(res.status).toBe(403);
+      expect(contract.verifyRecord).not.toHaveBeenCalled();
     });
   });
 });

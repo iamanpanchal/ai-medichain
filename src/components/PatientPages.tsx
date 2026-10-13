@@ -11,16 +11,53 @@ const recColor = (r: MedRecord) => TYPE_META[r.type].color;
 const recIcon = (r: MedRecord) => TYPE_META[r.type].icon;
 
 /* ---------------- Dashboard ---------------- */
-export function Dashboard({ records, pending, go, onOpen }: { records: MedRecord[]; pending: number; go: (p: string) => void; onOpen: (r: MedRecord) => void }) {
+export function Dashboard({ records, pending, go, onOpen, loading, error }: { records: MedRecord[]; pending: number; go: (p: string) => void; onOpen: (r: MedRecord) => void; loading?: boolean; error?: string | null }) {
   const stats = [
     { icon: 'file', color: '#2e7cf6', n: records.length, l: 'Total Records' },
     { icon: 'hospital', color: '#10e5a5', n: 3, l: 'Hospitals' },
     { icon: 'steth', color: '#22d3ee', n: 2, l: 'Doctors' },
     { icon: 'users', color: '#ff5c6c', n: pending, l: 'Pending Requests' },
   ];
+
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <p className="text-sm text-mist">Loading your health overview...</p>
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          {stats.map((s, i) => (
+            <div key={s.l} className="panel card-hover flex items-center gap-3.5 p-4" style={{ animationDelay: `${i * 60}ms` }}>
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: `${s.color}16`, color: s.color, border: `1px solid ${s.color}35` }}>
+                <I n={s.icon} className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-display text-2xl font-bold leading-none text-snow animate-pulse">—</p>
+                <p className="mt-1 truncate text-[11px] font-semibold uppercase tracking-wide text-dim">{s.l}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="panel flex flex-col items-center px-6 py-16 text-center">
+        <span className="grid h-14 w-14 place-items-center rounded-2xl bg-coral/15 text-coral">
+          <I n="alert" className="h-6 w-6" />
+        </span>
+        <p className="mt-4 text-sm font-bold text-snow">Failed to load data</p>
+        <p className="mt-1 text-xs text-dim">{error}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 flex items-center gap-2 rounded-lg bg-pulse px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-pulse2">
+          <I n="refresh" className="h-3.5 w-3.5" /> Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      <p className="text-sm text-mist">Here’s your health overview.</p>
+      <p className="text-sm text-mist">Here's your health overview.</p>
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {stats.map((s, i) => (
           <div key={s.l} className="panel card-hover flex items-center gap-3.5 p-4" style={{ animationDelay: `${i * 60}ms` }}>
@@ -129,10 +166,54 @@ const FILTERS: { id: string; label: string }[] = [
   { id: 'ecg', label: 'Vitals' },
 ];
 
-export function MyRecords({ records, onOpen, onAI }: { records: MedRecord[]; onOpen: (r: MedRecord) => void; onAI: (r: MedRecord) => void }) {
+export function MyRecords({ records, onOpen, onAI, loading, error }: { records: MedRecord[]; onOpen: (r: MedRecord) => void; onAI: (r: MedRecord) => void; loading?: boolean; error?: string | null }) {
   const [q, setQ] = useState('');
   const [f, setF] = useState('all');
   const list = records.filter((r) => (f === 'all' || r.type === f) && (r.title + r.source + r.id).toLowerCase().includes(q.toLowerCase()));
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[220px] flex-1">
+            <I n="search" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dim" />
+            <input disabled placeholder="Search by title, hospital or record ID…" className="field pl-9" />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {FILTERS.map((x) => (
+              <button key={x.id} disabled className="rounded-full px-3.5 py-1.5 text-xs font-bold border border-line text-mist opacity-50">
+                {x.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="panel divide-y divide-linesoft overflow-hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-3 px-4 py-3.5">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-pulse/15 animate-pulse" />
+              <div className="min-w-0 flex-1">
+                <div className="h-4 w-3/4 rounded bg-raise animate-pulse" />
+                <div className="mt-1 h-3 w-1/2 rounded bg-raise animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="panel flex flex-col items-center px-6 py-16 text-center">
+        <span className="grid h-14 w-14 place-items-center rounded-2xl bg-coral/15 text-coral">
+          <I n="alert" className="h-6 w-6" />
+        </span>
+        <p className="mt-4 text-sm font-bold text-snow">Failed to load records</p>
+        <p className="mt-1 text-xs text-dim">{error}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -311,11 +392,10 @@ const AI_SECTIONS = [
   { id: 'conditions', label: 'Possible Conditions', icon: 'heart' },
 ];
 
-export function AISummary({ records, selId, setSelId, onOpen }: { records: MedRecord[]; selId: string; setSelId: (id: string) => void; onOpen: (r: MedRecord) => void }) {
+export function AISummary({ records, selId, setSelId, onOpen, aiSummary, loading, error, onGenerate }: { records: MedRecord[]; selId: string; setSelId: (id: string) => void; onOpen: (r: MedRecord) => void; aiSummary: any; loading?: boolean; error?: string | null; onGenerate: (r: MedRecord) => void }) {
   const [open, setOpen] = useState(false);
   const [sec, setSec] = useState('summary');
   const rec = records.find((r) => r.id === selId) ?? records[0];
-  const data = AI_SUMMARIES[rec.id];
   const refs = {
     summary: useRef<HTMLDivElement>(null),
     findings: useRef<HTMLDivElement>(null),
@@ -328,11 +408,45 @@ export function AISummary({ records, selId, setSelId, onOpen }: { records: MedRe
     refs[id as keyof typeof refs].current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
+  if (loading && !aiSummary) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3">
+          <I n="alert" className="mt-0.5 h-4.5 w-4.5 shrink-0 text-amber" />
+          <p className="text-[13px] leading-relaxed text-amber">AI summaries are generated on-demand and are not a substitute for professional medical advice.</p>
+        </div>
+        <div className="panel p-5 animate-pulse space-y-4">
+          <div className="h-8 w-1/4 rounded bg-raise" />
+          <div className="h-4 w-full rounded bg-raise" />
+          <div className="h-4 w-3/4 rounded bg-raise" />
+          <div className="h-4 w-1/2 rounded bg-raise" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !aiSummary) {
+    return (
+      <div className="panel flex flex-col items-center px-6 py-16 text-center">
+        <span className="grid h-14 w-14 place-items-center rounded-2xl bg-coral/15 text-coral">
+          <I n="alert" className="h-6 w-6" />
+        </span>
+        <p className="mt-4 text-sm font-bold text-snow">Failed to load AI summary</p>
+        <p className="mt-1 text-xs text-dim">{error}</p>
+        <button onClick={() => onGenerate(rec)} className="mt-4 flex items-center gap-2 rounded-lg bg-pulse px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-pulse2">
+          <I n="sparkles" className="h-3.5 w-3.5" /> Generate Summary
+        </button>
+      </div>
+    );
+  }
+
+  const data = aiSummary || { blurb: [], findings: [], recs: [], conditions: [] };
+
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-2.5 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3">
         <I n="alert" className="mt-0.5 h-4.5 w-4.5 shrink-0 text-amber" />
-        <p className="text-[13px] leading-relaxed text-amber">{COPY.aiDisclaimer}</p>
+        <p className="text-[13px] leading-relaxed text-amber">AI summaries are generated on-demand and are not a substitute for professional medical advice.</p>
       </div>
 
       <div className="relative">
@@ -376,12 +490,12 @@ export function AISummary({ records, selId, setSelId, onOpen }: { records: MedRe
           <div key={rec.id} className="anim-pop space-y-5">
             <div ref={refs.summary} className="panel p-5">
               <h2 className="flex items-center gap-2 font-display text-base font-bold text-snow"><I n="sparkles" className="h-4.5 w-4.5 text-cy" /> AI Summary</h2>
-              {data.blurb.map((p, i) => <p key={i} className="mt-3 text-sm leading-relaxed text-mist">{p}</p>)}
+              {data.blurb?.map((p: string, i: number) => <p key={i} className="mt-3 text-sm leading-relaxed text-mist">{p}</p>) || <p className="mt-3 text-sm leading-relaxed text-mist">No summary available. Click "Generate Summary" to create one.</p>}
             </div>
             <div ref={refs.findings} className="panel p-5">
               <h2 className="flex items-center gap-2 font-display text-base font-bold text-snow"><I n="flask" className="h-4.5 w-4.5 text-coral" /> Key Findings</h2>
               <ul className="mt-4 space-y-2.5">
-                {data.findings.map((f) => (
+                {data.findings?.map((f: any) => (
                   <li key={f.label} className="flex flex-wrap items-center gap-2.5 rounded-lg border border-linesoft bg-deep/50 px-3.5 py-2.5">
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: f.status === 'normal' ? '#10e5a5' : f.status === 'low' ? '#ffb224' : '#ff5c6c' }} />
                     <span className="text-sm font-semibold text-snow">{f.label}:</span>
@@ -394,7 +508,7 @@ export function AISummary({ records, selId, setSelId, onOpen }: { records: MedRe
             <div ref={refs.recs} className="panel p-5">
               <h2 className="flex items-center gap-2 font-display text-base font-bold text-snow"><I n="check" className="h-4.5 w-4.5 text-mint" /> Recommendations</h2>
               <ul className="mt-4 space-y-2.5">
-                {data.recs.map((r, i) => (
+                {data.recs?.map((r: string, i: number) => (
                   <li key={i} className="flex items-center gap-2.5 text-sm text-mist">
                     <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-mint/15 text-mint"><I n="check" className="h-3 w-3" sw={3} /></span>
                     {r}
@@ -405,7 +519,7 @@ export function AISummary({ records, selId, setSelId, onOpen }: { records: MedRe
             <div ref={refs.conditions} className="panel p-5">
               <h2 className="flex items-center gap-2 font-display text-base font-bold text-snow"><I n="heart" className="h-4.5 w-4.5 text-grape" /> Possible Conditions</h2>
               <div className="mt-4 space-y-2.5">
-                {data.conditions.map((c) => (
+                {data.conditions?.map((c: any) => (
                   <div key={c.name} className="flex items-center justify-between rounded-lg border border-grape/30 bg-grape/10 px-3.5 py-2.5">
                     <span className="text-sm font-semibold text-snow">{c.name}</span>
                     <span className="rounded-full bg-grape/25 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-grape">{c.likelihood}</span>
@@ -445,7 +559,7 @@ export function AISummary({ records, selId, setSelId, onOpen }: { records: MedRe
 }
 
 /* ---------------- Record Detail ---------------- */
-export function RecordDetail({ rec, onBack }: { rec: MedRecord; onBack: () => void }) {
+export function RecordDetail({ rec, onBack, onVerify }: { rec: MedRecord; onBack: () => void; onVerify?: () => void }) {
   const toast = useToast();
   const [tab, setTab] = useState<'qr' | 'details'>('qr');
   const [copied, setCopied] = useState<string | null>(null);
@@ -460,13 +574,17 @@ export function RecordDetail({ rec, onBack }: { rec: MedRecord; onBack: () => vo
     setCopied(label);
     setTimeout(() => setCopied(null), 1600);
   };
-  const runVerify = () => {
+  const runVerify = async () => {
     if (verify === 'scanning') return;
     setVerify('scanning');
-    setTimeout(() => {
-      setVerify('done');
-      toast('Verification passed — hash matches on-chain record.', 'ok');
-    }, 1500);
+    if (onVerify) {
+      await onVerify();
+    } else {
+      setTimeout(() => {
+        setVerify('done');
+        toast('Verification passed — hash matches on-chain record.', 'ok');
+      }, 1500);
+    }
   };
 
   return (
@@ -515,7 +633,7 @@ export function RecordDetail({ rec, onBack }: { rec: MedRecord; onBack: () => vo
                 <p className="mt-1 truncate font-mono text-xs text-snow/90">{rec.hash.slice(0, 24)}…</p>
               </div>
               <button onClick={() => copy('hash', rec.hash)} className={cn('flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-all', copied === 'hash' ? 'border-mint/50 bg-mint/15 text-mint' : 'border-line text-mist hover:border-pulse2/60 hover:text-snow')}>
-                <I n={copied === 'hash' ? 'check' : 'copy'} className="h-3.5 w-3.5" /> {copied === 'hash' ? COPY.actions.copied : 'Copy'}
+                <I n={copied === 'hash' ? 'check' : 'copy'} className="h-3.5 w-3.5" /> {copied === 'hash' ? 'Copied' : 'Copy'}
               </button>
             </div>
             <div className="flex items-center gap-2">
@@ -524,7 +642,7 @@ export function RecordDetail({ rec, onBack }: { rec: MedRecord; onBack: () => vo
                 <p className="mt-1 truncate font-mono text-xs text-snow/90">{rec.tx}</p>
               </div>
               <button onClick={() => copy('tx', rec.tx)} className={cn('flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-all', copied === 'tx' ? 'border-mint/50 bg-mint/15 text-mint' : 'border-line text-mist hover:border-pulse2/60 hover:text-snow')}>
-                <I n={copied === 'tx' ? 'check' : 'copy'} className="h-3.5 w-3.5" /> {copied === 'tx' ? COPY.actions.copied : 'Copy'}
+                <I n={copied === 'tx' ? 'check' : 'copy'} className="h-3.5 w-3.5" /> {copied === 'tx' ? 'Copied' : 'Copy'}
               </button>
             </div>
             <div>
@@ -590,7 +708,7 @@ export interface AccessState {
   rejected: AccessReq[];
 }
 
-export function AccessRequests({ state, act }: { state: AccessState; act: (id: string, kind: 'approved' | 'rejected') => void }) {
+export function AccessRequests({ state, act, loading }: { state: AccessState; act: (id: string, kind: 'approved' | 'rejected') => void; loading?: boolean }) {
   const toast = useToast();
   const [tab, setTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const list = state[tab];
@@ -609,7 +727,19 @@ export function AccessRequests({ state, act }: { state: AccessState; act: (id: s
         ))}
       </div>
 
-      {list.length === 0 ? (
+      {loading ? (
+        <div className="panel divide-y divide-linesoft overflow-hidden">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-4 px-4 py-4">
+              <div className="h-10 w-10 rounded-full bg-raise animate-pulse" />
+              <div className="min-w-0 flex-1">
+                <div className="h-4 w-1/3 rounded bg-raise animate-pulse" />
+                <div className="mt-1 h-3 w-1/4 rounded bg-raise animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : list.length === 0 ? (
         <div className="panel flex flex-col items-center px-6 py-16 text-center">
           <span className={cn('grid h-14 w-14 place-items-center rounded-2xl', tab === 'pending' ? 'bg-pulse/15 text-pulse2' : tab === 'approved' ? 'bg-mint/15 text-mint' : 'bg-coral/15 text-coral')}>
             <I n={tab === 'rejected' ? 'x' : tab === 'approved' ? 'check' : 'clock'} className="h-6 w-6" />
@@ -769,11 +899,22 @@ export function Passport({ records, go }: { records: MedRecord[]; go: (p: string
 }
 
 /* ---------------- Activity Log ---------------- */
-export function ActivityLog() {
+export function ActivityLog({ records }: { records?: MedRecord[] }) {
+  // Use mock activity data for now, but could be replaced with real API
+  const activity = [
+    { id: 1, title: 'Record uploaded: Blood Test Report', meta: 'City Hospital · 12 Sep 2024', color: '#2e7cf6', icon: 'file' },
+    { id: 2, title: 'Access granted to Dr. Sarah Wilson', meta: 'Medicare Hospital · 10 Sep 2024', color: '#10e5a5', icon: 'check' },
+    { id: 3, title: 'AI Summary generated for ECG Reading', meta: 'City Hospital · 5 Sep 2024', color: '#22d3ee', icon: 'sparkles' },
+    { id: 4, title: 'Record uploaded: X-Ray Chest', meta: 'Medicare Hospital · 5 Aug 2024', color: '#2e7cf6', icon: 'file' },
+    { id: 5, title: 'Access request from Dr. Emily Carter', meta: 'LifeCare Hospital · 2 Aug 2024', color: '#ffb224', icon: 'clock' },
+    { id: 6, title: 'Record verified on-chain', meta: 'MRI Scan · 22 Jun 2024', color: '#10e5a5', icon: 'shield' },
+    { id: 7, title: 'Prescription shared with OrthoCare', meta: 'Dr. Emily Carter · 20 Jul 2024', color: '#a855f7', icon: 'share' },
+  ];
+
   return (
     <div className="mx-auto max-w-2xl">
       <div className="relative space-y-1 pl-6 before:absolute before:bottom-3 before:left-[15px] before:top-3 before:w-px before:bg-line">
-        {ACTIVITY.map((a, i) => (
+        {activity.map((a, i) => (
           <div key={i} className="anim-pop relative py-3" style={{ animationDelay: `${i * 70}ms` }}>
             <span className="absolute -left-6 top-4 grid h-8 w-8 place-items-center rounded-full border-4 border-ink" style={{ background: `${a.color}22`, color: a.color }}>
               <I n={a.icon} className="h-3.5 w-3.5" />

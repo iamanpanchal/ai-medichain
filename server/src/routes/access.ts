@@ -15,38 +15,38 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     if (role === 'patient') {
       const [pending, approved, rejected] = await Promise.all([
-        prisma.accessRequest.findMany({ where: { patientId: sub, status: 'pending' }, include: { doctor: true } }),
-        prisma.accessRequest.findMany({ where: { patientId: sub, status: 'approved' }, include: { doctor: true } }),
-        prisma.accessRequest.findMany({ where: { patientId: sub, status: 'rejected' }, include: { doctor: true } }),
+        prisma.access_requests.findMany({ where: { patient_id: sub, status: 'pending' }, include: { users_access_requests_doctor_idTousers: true } }),
+        prisma.access_requests.findMany({ where: { patient_id: sub, status: 'approved' }, include: { users_access_requests_doctor_idTousers: true } }),
+        prisma.access_requests.findMany({ where: { patient_id: sub, status: 'rejected' }, include: { users_access_requests_doctor_idTousers: true } }),
       ]);
 
       const format = (ar: typeof pending) =>
         ar.map((r) => ({
           id:       r.id,
-          doctor:   r.doctor.name,
-          hospital: r.doctor.name, // would be hospital name in production
-          date:     r.createdAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+          doctor:   r.users_access_requests_doctor_idTousers.name,
+          hospital: r.users_access_requests_doctor_idTousers.name, // would be hospital name in production
+          date:     r.created_at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
           purpose:  r.purpose,
         }));
 
       res.json({ success: true, data: { pending: format(pending), approved: format(approved), rejected: format(rejected) } });
     } else {
       // doctor/hospital sees their own sent requests
-      const sent = await prisma.accessRequest.findMany({
-        where: { doctorId: sub },
-        include: { patient: true },
-        orderBy: { createdAt: 'desc' },
+      const sent = await prisma.access_requests.findMany({
+        where: { doctor_id: sub },
+        include: { users_access_requests_patient_idTousers: true },
+        orderBy: { created_at: 'desc' },
       });
 
       res.json({
         success: true,
         data: sent.map((r) => ({
           id:        r.id,
-          patient:   r.patient.name,
-          patientId: r.patientId,
+          patient:   r.users_access_requests_patient_idTousers.name,
+          patient_id: r.patient_id,
           hospital:  'MediChain Network',
           scope:     r.purpose,
-          date:      r.createdAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+          date:      r.created_at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
           status:    r.status.charAt(0).toUpperCase() + r.status.slice(1),
         })),
       });
@@ -59,7 +59,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 // ── POST /api/access/request ──────────────────────────────────────────────────
 // Doctor sends access request to a patient
 const RequestSchema = z.object({
-  patientId: z.string().uuid(),
+  patient_id: z.string().uuid(),
   purpose:   z.string().min(1),
 });
 
@@ -72,24 +72,24 @@ router.post('/request', async (req: Request, res: Response, next: NextFunction) 
 
     const body = RequestSchema.parse(req.body);
 
-    const patient = await prisma.user.findUnique({ where: { id: body.patientId } });
+    const patient = await prisma.users.findUnique({ where: { id: body.patient_id } });
     if (!patient || patient.role !== 'patient') {
       res.status(404).json({ success: false, message: 'Patient not found.' });
       return;
     }
 
-    const existing = await prisma.accessRequest.findFirst({
-      where: { patientId: body.patientId, doctorId: req.user!.sub, status: 'pending' },
+    const existing = await prisma.access_requests.findFirst({
+      where: { patient_id: body.patient_id, doctor_id: req.user!.sub, status: 'pending' },
     });
     if (existing) {
       res.status(409).json({ success: false, message: 'A pending request already exists for this patient.' });
       return;
     }
 
-    const request = await prisma.accessRequest.create({
+    const request = await prisma.access_requests.create({
       data: {
-        patientId: body.patientId,
-        doctorId:  req.user!.sub,
+        patient_id: body.patient_id,
+        doctor_id:  req.user!.sub,
         purpose:   body.purpose,
       },
     });
@@ -115,12 +115,12 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
 
     const body = ActionSchema.parse(req.body);
 
-    const ar = await prisma.accessRequest.findUnique({ where: { id: req.params.id as string }, include: { doctor: true } });
+    const ar = await prisma.access_requests.findUnique({ where: { id: req.params.id as string }, include: { users_access_requests_doctor_idTousers: true } });
     if (!ar) {
       res.status(404).json({ success: false, message: 'Access request not found.' });
       return;
     }
-    if (ar.patientId !== req.user!.sub) {
+    if (ar.patient_id !== req.user!.sub) {
       res.status(403).json({ success: false, message: 'Access denied.' });
       return;
     }
@@ -129,7 +129,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
       return;
     }
 
-    const updated = await prisma.accessRequest.update({
+    const updated = await prisma.access_requests.update({
       where: { id: req.params.id as string },
       data:  { status: body.action },
     });
@@ -138,40 +138,40 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
     // locked out. Rejecting must take it away again, so a later re-approval is
     // the only way back in.
     if (body.action === 'approved') {
-      const records = await prisma.medRecord.findMany({
-        where: { patientId: ar.patientId },
+      const records = await prisma.records.findMany({
+        where: { patient_id: ar.patient_id },
         select: { id: true },
       });
 
       // Delete-then-create keeps the operation idempotent if a grant already
       // exists (e.g. re-approval after a revocation).
-      await prisma.sharedAccess.deleteMany({
-        where: { patientId: ar.patientId, doctorId: ar.doctorId },
+      await prisma.shared_access.deleteMany({
+        where: { patient_id: ar.patient_id, doctor_id: ar.doctor_id },
       });
 
       if (records.length > 0) {
-        await prisma.sharedAccess.createMany({
+        await prisma.shared_access.createMany({
           data: records.map((record) => ({
-            patientId: ar.patientId,
-            doctorId:  ar.doctorId,
-            recordId:  record.id,
+            patient_id: ar.patient_id,
+            doctor_id:  ar.doctor_id,
+            record_id:  record.id,
             status:    'active' as const,
           })),
         });
       }
     } else {
-      await prisma.sharedAccess.deleteMany({
-        where: { patientId: ar.patientId, doctorId: ar.doctorId },
+      await prisma.shared_access.deleteMany({
+        where: { patient_id: ar.patient_id, doctor_id: ar.doctor_id },
       });
     }
 
     // Log activity
-    await prisma.activity.create({
+    await prisma.activities.create({
       data: {
-        userId: req.user!.sub,
+        user_id: req.user!.sub,
         icon:   body.action === 'approved' ? 'check' : 'x',
         color:  body.action === 'approved' ? '#10e5a5' : '#ff5c6c',
-        title:  `Access ${body.action} for ${ar.doctor.name}`,
+        title:  `Access ${body.action} for ${ar.users_access_requests_doctor_idTousers.name}`,
         meta:   `${ar.purpose} · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
       },
     });
@@ -186,12 +186,12 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
 // Doctor withdraws a pending request
 router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const ar = await prisma.accessRequest.findUnique({ where: { id: req.params.id as string } });
+    const ar = await prisma.access_requests.findUnique({ where: { id: req.params.id as string } });
     if (!ar) {
       res.status(404).json({ success: false, message: 'Access request not found.' });
       return;
     }
-    if (ar.doctorId !== req.user!.sub) {
+    if (ar.doctor_id !== req.user!.sub) {
       res.status(403).json({ success: false, message: 'Only the requesting doctor can withdraw this request.' });
       return;
     }
@@ -200,11 +200,11 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
       return;
     }
 
-    await prisma.accessRequest.delete({ where: { id: req.params.id as string } });
+    await prisma.access_requests.delete({ where: { id: req.params.id as string } });
 
     // Withdrawing a pending request revokes anything a prior approval granted.
-    await prisma.sharedAccess.deleteMany({
-      where: { patientId: ar.patientId, doctorId: ar.doctorId },
+    await prisma.shared_access.deleteMany({
+      where: { patient_id: ar.patient_id, doctor_id: ar.doctor_id },
     });
 
     res.json({ success: true, message: 'Request withdrawn.' });

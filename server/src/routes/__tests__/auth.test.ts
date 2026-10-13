@@ -10,7 +10,7 @@ describe('Auth Routes', () => {
 
   describe('POST /api/auth/register', () => {
     it('should register a new user', async () => {
-      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.users.findUnique.mockResolvedValue(null);
       
       const mockUser = {
         id: 'user-1',
@@ -25,7 +25,7 @@ describe('Auth Routes', () => {
         updatedAt: new Date()
       };
       
-      prismaMock.user.create.mockResolvedValue(mockUser as any);
+      prismaMock.users.create.mockResolvedValue(mockUser as any);
 
       const res = await request(app)
         .post('/api/auth/register')
@@ -43,7 +43,7 @@ describe('Auth Routes', () => {
     });
 
     it('should return 409 if email exists', async () => {
-      prismaMock.user.findUnique.mockResolvedValue({ id: '1' } as any);
+      prismaMock.users.findUnique.mockResolvedValue({ id: '1' } as any);
 
       const res = await request(app)
         .post('/api/auth/register')
@@ -77,7 +77,7 @@ describe('Auth Routes', () => {
         updatedAt: new Date()
       };
       
-      prismaMock.user.findUnique.mockResolvedValue(mockUser as any);
+      prismaMock.users.findUnique.mockResolvedValue(mockUser as any);
 
       const res = await request(app)
         .post('/api/auth/login')
@@ -94,7 +94,7 @@ describe('Auth Routes', () => {
     it('should fail with invalid password', async () => {
       const hashedPassword = await bcrypt.hash('password123', 10);
       
-      prismaMock.user.findUnique.mockResolvedValue({
+      prismaMock.users.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'test@example.com',
         name: 'Test User',

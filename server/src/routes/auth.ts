@@ -38,14 +38,14 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
   try {
     const body = RegisterSchema.parse(req.body);
 
-    const existing = await prisma.user.findUnique({ where: { email: body.email } });
+    const existing = await prisma.users.findUnique({ where: { email: body.email } });
     if (existing) {
       res.status(409).json({ success: false, message: 'Email already registered.' });
       return;
     }
 
     const hashedPassword = await bcrypt.hash(body.password, 10);
-    const user = await prisma.user.create({
+    const user = await prisma.users.create({
       data: {
         email:    body.email,
         password: hashedPassword,
@@ -74,7 +74,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
   try {
     const body = LoginSchema.parse(req.body);
 
-    const user = await prisma.user.findUnique({ where: { email: body.email } });
+    const user = await prisma.users.findUnique({ where: { email: body.email } });
     if (!user) {
       res.status(401).json({ success: false, message: 'Invalid email or password.' });
       return;
@@ -99,7 +99,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────
 router.get('/me', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user!.sub } });
+    const user = await prisma.users.findUnique({ where: { id: req.user!.sub } });
     if (!user) {
       res.status(404).json({ success: false, message: 'User not found.' });
       return;

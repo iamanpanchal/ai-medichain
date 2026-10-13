@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Theme, ToastProvider } from './components/ui';
@@ -29,11 +29,7 @@ import {
 } from './components/DoctorPages';
 
 import {
-  ACCESS_APPROVED,
-  ACCESS_PENDING,
-  ACCESS_REJECTED,
   MedRecord,
-  RECORDS,
   Role,
 } from './data';
 
@@ -43,7 +39,33 @@ import {
   type AuthSession,
 } from './services/auth';
 
+import {
+  fetchRecords,
+  fetchAccessRequests,
+  fetchDoctorAccessRequests,
+  createRecord,
+  approveAccessRequest,
+  rejectAccessRequest,
+  withdrawAccessRequest,
+  generateAISummary,
+  fetchAISummary,
+  searchPatients,
+  verifyRecord,
+  type RecordsResponse,
+  type AccessRequestsResponse,
+  type DoctorAccessRequestItem,
+  type AISummaryResponse,
+} from './services/api';
+
 type Stage = 'landing' | 'auth' | 'role' | 'app';
+
+interface PatientRecord extends MedRecord {
+  createdAt: string;
+  updatedAt: string;
+  patientId: string;
+  aiSummary?: AISummaryResponse | null;
+  sharedAccess?: Array<{ doctorId: string; status: string }>;
+}
 
 export default function App() {
   const location = useLocation();
@@ -73,20 +95,41 @@ export default function App() {
   );
 
   // Medical records
-  const [records, setRecords] = useState<MedRecord[]>(RECORDS);
-  const [selRecord, setSelRecord] = useState<MedRecord>(RECORDS[0]);
-  const [aiId, setAiId] = useState('MR-1024');
+  const [records, setRecords] = useState<PatientRecord[]>([]);
+  const [selRecord, setSelRecord] = useState<PatientRecord | null>(null);
+  const [aiId, setAiId] = useState<string>('');
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [recordsError, setRecordsError] = useState<string | null>(null);
+
+  // Access management
+  const [access, setAccess] = useState<AccessState>({
+    pending: [],
+    approved: [],
+    rejected: [],
+  });
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [doctorAccessRequests, setDoctorAccessRequests] = useState<DoctorAccessRequestItem[]>([]);
+  const [doctorAccessLoading, setDoctorAccessLoading] = useState(false);
+
+  // AI Summary
+  const [aiSummary, setAiSummary] = useState<AISummaryResponse | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
 
   // Chat state
   const [chatOpen, setChatOpen] = useState(false);
   const [landingChatOpen, setLandingChatOpen] = useState(false);
 
-  // Access management
-  const [access, setAccess] = useState<AccessState>({
-    pending: ACCESS_PENDING,
-    approved: ACCESS_APPROVED,
-    rejected: ACCESS_REJECTED,
-  });
+  // Search patients (doctor)
+  const [searchResults, setSearchResults] = useState<Array<{
+    id: string;
+    name: string;
+    dob: string;
+    hospital: string;
+    records: string[];
+    recordDetails: Array<{ id: string; title: string; source: string; date: string; type: string; region: string }>;
+  }>>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   // Apply theme
   useEffect(() => {
@@ -115,6 +158,89 @@ export default function App() {
     }
   }, []);
 
+  // Load patient data when authenticated as patient
+  const loadPatientData = useCallback(async () => {
+    if (role !== 'patient' || !authSession) return;
+
+    setRecordsLoading(true);
+    setAccessLoading(true);
+    setRecordsError(null);
+
+    try {
+      const [recordsData, accessData] = await Promise.all([
+        fetchRecords(),
+        fetchAccessRequests(),
+      ]);
+
+      setRecords(recordsData);
+      if (recordsData.length > 0 && !selRecord) {
+        setSelRecord(recordsData[0]);
+        setAiId(recordsData[0].id);
+      }
+      setAccess({
+        pending: accessData.pending.map((a) => ({
+          id: a.id,
+          doctor: a.doctor,
+          hospital: a.hospital,
+          date: a.date,
+          purpose: a.purpose,
+          img: a.img,
+        })),
+        approved: accessData.approved.map((a) => ({
+          id: a.id,
+          doctor: a.doctor,
+          hospital: a.hospital,
+          date: a.date,
+          purpose: a.purpose,
+          img: a.img,
+        })),
+        rejected: accessData.rejected.map((a) => ({
+          id: a.id,
+          doctor: a.doctor,
+          hospital: a.hospital,
+          date: a.date,
+          purpose: a.purpose,
+          img: a.img,
+        })),
+      });
+    } catch (err) {
+      setRecordsError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setRecordsLoading(false);
+      setAccessLoading(false);
+    }
+  }, [role, authSession, selRecord]);
+
+  // Load doctor data when authenticated as doctor/hospital
+  const loadDoctorData = useCallback(async () => {
+    if (role === 'patient' || !authSession) return;
+
+    setDoctorAccessLoading(true);
+    try {
+      const accessData = await fetchDoctorAccessRequests();
+      setDoctorAccessRequests(accessData);
+    } catch (err) {
+      console.error('Failed to load doctor access requests:', err);
+    } finally {
+      setDoctorAccessLoading(false);
+    }
+  }, [role, authSession]);
+
+  // Load data when auth changes
+  useEffect(() => {
+    if (authSession) {
+      if (role === 'patient') {
+        loadPatientData();
+      } else {
+        loadDoctorData();
+      }
+    } else {
+      setRecords([]);
+      setAccess({ pending: [], approved: [], rejected: [] });
+      setDoctorAccessRequests([]);
+    }
+  }, [authSession, role, loadPatientData, loadDoctorData]);
+
   // Protect application routes
   useEffect(() => {
     if (location.pathname.startsWith('/app/') && !authSession) {
@@ -130,43 +256,106 @@ export default function App() {
   };
 
   // Open medical record
-  const openRecord = (record: MedRecord) => {
+  const openRecord = (record: PatientRecord) => {
     setSelRecord(record);
     go('record');
   };
 
   // Open AI summary
-  const openAI = (record: MedRecord) => {
+  const openAI = async (record: PatientRecord) => {
     setAiId(record.id);
+    setAiSummaryLoading(true);
+    setAiSummaryError(null);
+    try {
+      // Try to fetch existing summary first
+      const summary = await fetchAISummary(record.id);
+      setAiSummary(summary);
+    } catch {
+      // Generate new summary
+      try {
+        const summary = await generateAISummary(record.id);
+        setAiSummary(summary);
+      } catch (err) {
+        setAiSummaryError(err instanceof Error ? err.message : 'Failed to generate AI summary');
+      }
+    } finally {
+      setAiSummaryLoading(false);
+    }
     go('ai');
   };
 
-  // Approve / reject access request
-  const act = (
+  // Approve / reject access request (patient)
+  const act = async (
     id: string,
     kind: 'approved' | 'rejected'
   ) => {
-    setAccess((state) => {
-      const item = state.pending.find((x) => x.id === id);
-
-      if (!item) {
-        return state;
+    try {
+      if (kind === 'approved') {
+        await approveAccessRequest(id);
+      } else {
+        await rejectAccessRequest(id);
       }
+      // Reload access requests
+      const accessData = await fetchAccessRequests();
+      setAccess({
+        pending: accessData.pending.map((a) => ({
+          id: a.id,
+          doctor: a.doctor,
+          hospital: a.hospital,
+          date: a.date,
+          purpose: a.purpose,
+          img: a.img,
+        })),
+        approved: accessData.approved.map((a) => ({
+          id: a.id,
+          doctor: a.doctor,
+          hospital: a.hospital,
+          date: a.date,
+          purpose: a.purpose,
+          img: a.img,
+        })),
+        rejected: accessData.rejected.map((a) => ({
+          id: a.id,
+          doctor: a.doctor,
+          hospital: a.hospital,
+          date: a.date,
+          purpose: a.purpose,
+          img: a.img,
+        })),
+      });
+    } catch (err) {
+      console.error('Failed to update access request:', err);
+    }
+  };
 
-      return {
-        pending: state.pending.filter((x) => x.id !== id),
+  // Doctor: approve/reject access request (for sent page)
+  const doctorAct = async (
+    id: string,
+    kind: 'approved' | 'rejected'
+  ) => {
+    try {
+      if (kind === 'approved') {
+        await approveAccessRequest(id);
+      } else {
+        await rejectAccessRequest(id);
+      }
+      // Reload doctor access requests
+      const accessData = await fetchDoctorAccessRequests();
+      setDoctorAccessRequests(accessData);
+    } catch (err) {
+      console.error('Failed to update access request:', err);
+    }
+  };
 
-        approved:
-          kind === 'approved'
-            ? [item, ...state.approved]
-            : state.approved,
-
-        rejected:
-          kind === 'rejected'
-            ? [item, ...state.rejected]
-            : state.rejected,
-      };
-    });
+  // Doctor: withdraw access request
+  const withdrawRequest = async (id: string) => {
+    try {
+      await withdrawAccessRequest(id);
+      const accessData = await fetchDoctorAccessRequests();
+      setDoctorAccessRequests(accessData);
+    } catch (err) {
+      console.error('Failed to withdraw access request:', err);
+    }
   };
 
   // Change application stage
@@ -190,8 +379,11 @@ export default function App() {
 
     setAuthSession(null);
     setRole('patient');
-    setSelRecord(RECORDS[0]);
-    setAiId('MR-1024');
+    setRecords([]);
+    setSelRecord(null);
+    setAiId('');
+    setAccess({ pending: [], approved: [], rejected: [] });
+    setDoctorAccessRequests([]);
     setChatOpen(false);
 
     enter('landing');
@@ -217,6 +409,24 @@ export default function App() {
         : location.pathname.startsWith('/app/')
           ? 'app'
           : 'landing';
+
+  // Doctor search patients
+  const handleSearchPatients = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const results = await searchPatients(query);
+      setSearchResults(results);
+    } catch (err) {
+      console.error('Search failed:', err);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
 
   return (
     <ToastProvider>
@@ -295,12 +505,9 @@ export default function App() {
                   <ChatPanel
                     focusedRecord={
                       page === 'record'
-                        ? selRecord
+                        ? selRecord ?? undefined
                         : page === 'ai'
-                          ? records.find(
-                              (record) =>
-                                record.id === aiId
-                            )
+                          ? records.find((record) => record.id === aiId)
                           : undefined
                     }
                     onClose={() => setChatOpen(false)}
@@ -323,6 +530,8 @@ export default function App() {
                   pending={access.pending.length}
                   go={go}
                   onOpen={openRecord}
+                  loading={recordsLoading}
+                  error={recordsError}
                 />
               )}
 
@@ -331,19 +540,23 @@ export default function App() {
                   records={records}
                   onOpen={openRecord}
                   onAI={openAI}
+                  loading={recordsLoading}
+                  error={recordsError}
                 />
               )}
 
               {page === 'upload' && (
                 <Upload
-                  onAdd={(record) => {
-                    setRecords((items) => [
-                      record,
-                      ...items,
-                    ]);
-
-                    go('records');
+                  onAdd={async (record) => {
+                    try {
+                      const created = await createRecord(record);
+                      setRecords((items) => [created, ...items]);
+                      go('records');
+                    } catch (err) {
+                      console.error('Upload failed:', err);
+                    }
                   }}
+                  loading={false}
                 />
               )}
 
@@ -353,13 +566,25 @@ export default function App() {
                   selId={aiId}
                   setSelId={setAiId}
                   onOpen={openRecord}
+                  aiSummary={aiSummary}
+                  loading={aiSummaryLoading}
+                  error={aiSummaryError}
+                  onGenerate={openAI}
                 />
               )}
 
-              {page === 'record' && (
+              {page === 'record' && selRecord && (
                 <RecordDetail
                   rec={selRecord}
                   onBack={() => go('records')}
+                  onVerify={async () => {
+                    try {
+                      const _result = await verifyRecord(selRecord.id);
+                      // The component handles the toast
+                    } catch (err) {
+                      console.error('Verification failed:', err);
+                    }
+                  }}
                 />
               )}
 
@@ -367,10 +592,11 @@ export default function App() {
                 <AccessRequests
                   state={access}
                   act={act}
+                  loading={accessLoading}
                 />
               )}
 
-              {page === 'shared' && <SharedWith />}
+              {page === 'shared' && <SharedWith records={records} />}
 
               {page === 'passport' && (
                 <Passport
@@ -379,7 +605,7 @@ export default function App() {
                 />
               )}
 
-              {page === 'activity' && <ActivityLog />}
+              {page === 'activity' && <ActivityLog records={records} />}
 
               {page === 'settings' && (
                 <Settings onLogout={logout} />
@@ -396,13 +622,24 @@ export default function App() {
               )}
 
               {page === 'search' && (
-                <SearchPatients />
+                <SearchPatients
+                  onSearch={handleSearchPatients}
+                  results={searchResults}
+                  loading={searchLoading}
+                />
               )}
 
-              {page === 'sent' && <AccessSent />}
+              {page === 'sent' && (
+                <AccessSent
+                  requests={doctorAccessRequests}
+                  onAct={doctorAct}
+                  onWithdraw={withdrawRequest}
+                  loading={doctorAccessLoading}
+                />
+              )}
 
               {page === 'activity' && (
-                <ActivityLog />
+                <ActivityLog records={records} />
               )}
 
               {page === 'settings' && (
@@ -415,5 +652,3 @@ export default function App() {
     </ToastProvider>
   );
 }
-
-

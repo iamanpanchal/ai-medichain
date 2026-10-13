@@ -11,7 +11,7 @@ async function main() {
   const doctorPw  = await bcrypt.hash('doctor123', 10);
   const hospitalPw = await bcrypt.hash('hospital123', 10);
 
-  const patient = await prisma.user.upsert({
+  const patient = await prisma.users.upsert({
     where: { email: 'aman@medichain.io' },
     update: {},
     create: {
@@ -23,7 +23,7 @@ async function main() {
     },
   });
 
-  const doctor = await prisma.user.upsert({
+  const doctor = await prisma.users.upsert({
     where: { email: 'sarah@medichain.io' },
     update: {},
     create: {
@@ -35,7 +35,7 @@ async function main() {
     },
   });
 
-  const hospital = await prisma.user.upsert({
+  const hospital = await prisma.users.upsert({
     where: { email: 'cityhospital@medichain.io' },
     update: {},
     create: {
@@ -66,18 +66,18 @@ async function main() {
   ] as const;
 
   for (const r of records) {
-    await prisma.medRecord.upsert({
+    await prisma.records.upsert({
       where: { id: r.id },
       update: {},
-      create: { ...r, patientId: patient.id },
+      create: { ...r, patient_id: patient.id },
     });
   }
   console.log(`✅ Records: ${records.length} seeded`);
 
   // ── AI Summaries ───────────────────────────────────────────────────────────
-  const summaries: Array<{ recordId: string; blurb: string[]; findings: object[]; recs: string[]; conditions: object[] }> = [
+  const summaries: Array<{ record_id: string; blurb: string[]; findings: object[]; recs: string[]; conditions: object[] }> = [
     {
-      recordId: 'MR-1024',
+      record_id: 'MR-1024',
       blurb: ['Your blood tests are mostly within normal range. Your Vitamin D level is low and cholesterol is marginally high.'],
       findings: [
         { label: 'Hemoglobin', value: 'Normal (13.5 g/dL)', status: 'normal' },
@@ -88,7 +88,7 @@ async function main() {
       conditions: [{ name: 'Vitamin D insufficiency', likelihood: 'Likely' }, { name: 'Mild hyperlipidemia', likelihood: 'Possible' }],
     },
     {
-      recordId: 'MR-1019',
+      record_id: 'MR-1019',
       blurb: ['No abnormalities detected in your chest X-ray. Lung fields appear clear and heart size is within normal limits.'],
       findings: [
         { label: 'Lung fields',      value: 'Clear, no consolidation',  status: 'normal' },
@@ -99,7 +99,7 @@ async function main() {
       conditions: [{ name: 'No significant findings', likelihood: 'Confirmed' }],
     },
     {
-      recordId: 'MR-1002',
+      record_id: 'MR-1002',
       blurb: ['Your ECG shows a normal sinus rhythm with no signs of arrhythmia or ischemia.'],
       findings: [
         { label: 'Rhythm',      value: 'Normal sinus, 72 bpm',    status: 'normal' },
@@ -112,8 +112,8 @@ async function main() {
   ];
 
   for (const s of summaries) {
-    await prisma.aiSummary.upsert({
-      where: { recordId: s.recordId },
+    await prisma.ai_summaries.upsert({
+      where: { record_id: s.record_id },
       update: {},
       create: s,
     });
@@ -121,13 +121,13 @@ async function main() {
   console.log(`✅ AI summaries: ${summaries.length} seeded`);
 
   // ── Access Requests ────────────────────────────────────────────────────────
-  await prisma.accessRequest.upsert({
+  await prisma.access_requests.upsert({
     where: { id: 'ar-seed-1' },
     update: {},
     create: {
       id: 'ar-seed-1',
-      patientId: patient.id,
-      doctorId: doctor.id,
+      patient_id: patient.id,
+      doctor_id: doctor.id,
       purpose: 'Cardiology follow-up',
       status: 'pending',
     },
@@ -145,7 +145,7 @@ async function main() {
   ];
 
   for (const a of activities) {
-    await prisma.activity.create({ data: { ...a, userId: patient.id } });
+    await prisma.activities.create({ data: { ...a, user_id: patient.id } });
   }
   console.log(`✅ Activities: ${activities.length} seeded`);
 
