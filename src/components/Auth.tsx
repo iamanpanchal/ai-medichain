@@ -33,6 +33,11 @@ export function Login({ onLogin, onBack }: { onLogin: (r: Role, session: AuthSes
       let session;
       if (isRegistering) {
         session = await registerWithEmail(email.trim(), pw, name.trim(), role);
+        if (!session.token) {
+          toast('Account created! Please check your email to confirm your account before logging in.', 'ok');
+          setIsRegistering(false);
+          return;
+        }
       } else {
         session = await loginWithEmail(email.trim(), pw);
       }
